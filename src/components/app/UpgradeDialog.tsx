@@ -30,7 +30,7 @@ export function UpgradeDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-5 text-primary" /> Radar Pro
+            <Sparkles className="size-5 text-primary" /> Cusp Pro
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">

@@ -12,7 +12,7 @@ export async function POST() {
 
   let sent = 0;
   for (const s of subs) {
-    const status = await sendPush(s, { title: "Radar test 📡", body: "Background push is working.", tag: "radar-test" });
+    const status = await sendPush(s, { title: "Cusp test 📡", body: "Background push is working.", tag: "cusp-test" });
     if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
     else if (status >= 200 && status < 300) sent++;
   }

@@ -36,14 +36,14 @@ export async function GET(_req: Request, { params }: Ctx) {
   }));
 
   const ics = buildICS(track, {
-    calName: "Radar",
+    calName: "Cusp",
     emojiPrefix: (ev) => (ev as TrackEvent & { emoji: string }).emoji,
   });
 
   return new Response(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `inline; filename="radar.ics"`,
+      "Content-Disposition": `inline; filename="cusp.ics"`,
       "Cache-Control": "public, max-age=1800",
     },
   });

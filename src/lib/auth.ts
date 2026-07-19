@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
-const COOKIE = "radar_session";
+const COOKIE = "cusp_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-insecure-secret-change-me");
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 

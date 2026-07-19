@@ -10,7 +10,7 @@ import type { ClientCategory, ClientEvent } from "@/lib/client/types";
 
 function downloadICS(event: ClientEvent, emoji: string) {
   const track: TrackEvent = { ...event, freq: event.freq as TrackEvent["freq"] };
-  const ics = buildICS([track], { calName: "Radar", emojiPrefix: () => emoji });
+  const ics = buildICS([track], { calName: "Cusp", emojiPrefix: () => emoji });
   const blob = new Blob([ics], { type: "text/calendar" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

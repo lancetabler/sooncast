@@ -58,7 +58,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   // register SW + first-run onboarding
   useEffect(() => {
     registerServiceWorker();
-    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("radar_onboarded");
+    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("cusp_onboarded");
     if (!onboarded && state.events.length === 0 && state.follows.length === 0) setShowOnboard(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -109,7 +109,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col pb-24">
       {/* Header */}
-      <header className="radar-glow sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
+      <header className="cusp-glow sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
         <div className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-violet-500 text-white">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -119,7 +119,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
               <path d="M12 12 L20 6" />
             </svg>
           </span>
-          <span className="text-lg font-bold tracking-tight">Radar</span>
+          <span className="text-lg font-bold tracking-tight">Cusp</span>
         </div>
         {(view === "upcoming" || view === "calendar") && (
           <button onClick={() => setShowSearch((s) => !s)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Search">
@@ -233,7 +233,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         open={showOnboard}
         onOpenChange={setShowOnboard}
         onDone={() => {
-          localStorage.setItem("radar_onboarded", "1");
+          localStorage.setItem("cusp_onboarded", "1");
           refresh();
         }}
       />
@@ -274,7 +274,7 @@ function EmptyState({ hasEvents, onAdd, onDiscover }: { hasEvents: boolean; onAd
     <div className="flex flex-col items-center gap-4 py-20 text-center">
       <div className="text-5xl">{hasEvents ? "🔭" : "📡"}</div>
       <div>
-        <h3 className="font-semibold">{hasEvents ? "Nothing coming up here" : "Your radar is clear"}</h3>
+        <h3 className="font-semibold">{hasEvents ? "Nothing coming up here" : "Nothing on the horizon yet"}</h3>
         <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
           {hasEvents
             ? "Try a different filter or clear your search."

@@ -117,7 +117,7 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* ---- Radar identity: deep navy dark theme + blue/violet accent ---- */
+/* ---- Cusp identity: deep navy dark theme + blue/violet accent ---- */
 .dark {
   --background: oklch(0.17 0.02 264);
   --foreground: oklch(0.97 0.01 260);
@@ -162,7 +162,7 @@
 
 /* Signature: the "horizon" time-rail down the left of each event. */
 @layer components {
-  .radar-glow {
+  .cusp-glow {
     background:
       radial-gradient(900px 460px at 82% -8%, color-mix(in oklch, var(--primary) 22%, transparent), transparent 60%),
       radial-gradient(700px 480px at -12% 6%, color-mix(in oklch, var(--chart-2) 14%, transparent), transparent 55%);

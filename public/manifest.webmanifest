@@ -1,6 +1,6 @@
 {
-  "name": "Radar — Universal Tracker",
-  "short_name": "Radar",
+  "name": "Cusp — Universal Tracker",
+  "short_name": "Cusp",
   "description": "Track anything with a date and get reminded before it happens.",
   "start_url": "/",
   "scope": "/",

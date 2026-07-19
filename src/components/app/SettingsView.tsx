@@ -109,12 +109,12 @@ export function SettingsView({
     if (!events.length) return toast("Nothing to export yet");
     const emojiFor = new Map(categories.map((c) => [c.id, c.emoji]));
     const track: TrackEvent[] = events.map((e: ClientEvent) => ({ ...e, freq: e.freq as TrackEvent["freq"] }));
-    const ics = buildICS(track, { calName: "Radar", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
+    const ics = buildICS(track, { calName: "Cusp", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
     const blob = new Blob([ics], { type: "text/calendar" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "radar-all.ics";
+    a.download = "cusp-all.ics";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast.success("Opening your calendar…");
@@ -174,7 +174,7 @@ export function SettingsView({
         </Row>
         {!isStandalone() && (
           <p className="px-1 text-xs text-muted-foreground">
-            On iPhone: Share → <b>Add to Home Screen</b>, then open Radar from that icon before enabling push.
+            On iPhone: Share → <b>Add to Home Screen</b>, then open Cusp from that icon before enabling push.
           </p>
         )}
       </Section>
@@ -183,7 +183,7 @@ export function SettingsView({
         <div className="rounded-xl border border-border/70 bg-card p-3.5">
           <p className="text-sm text-muted-foreground">
             Subscribe once in Apple/Google Calendar and it auto-updates as your events change. The calendar fires
-            the alarms itself — the dependable way to be alerted when Radar is closed.
+            the alarms itself — the dependable way to be alerted when Cusp is closed.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" asChild>
@@ -266,7 +266,7 @@ export function SettingsView({
         </Button>
       </Section>
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">Radar · your data is private to your account.</p>
+      <p className="pt-2 text-center text-xs text-muted-foreground">Cusp · your data is private to your account.</p>
     </div>
   );
 }

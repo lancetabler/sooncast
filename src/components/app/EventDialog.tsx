@@ -214,7 +214,7 @@ export function EventDialog({
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              On iPhone, add the event to your calendar for alerts when Radar is closed — or enable push in Settings.
+              On iPhone, add the event to your calendar for alerts when Cusp is closed — or enable push in Settings.
             </p>
           </div>
 
@@ -241,7 +241,7 @@ export function EventDialog({
             <span />
           )}
           <Button onClick={save} disabled={busy}>
-            {busy ? "Saving…" : isEdit ? "Save" : "Add to Radar"}
+            {busy ? "Saving…" : isEdit ? "Save" : "Add to Cusp"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -48,13 +48,13 @@ export default function AuthScreen() {
   }
 
   return (
-    <div className="radar-glow min-h-dvh w-full">
+    <div className="cusp-glow min-h-dvh w-full">
       <div className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center gap-10 px-6 py-12 lg:flex-row lg:items-center lg:gap-16">
         {/* Hero */}
         <div className="flex-1">
           <div className="mb-6 flex items-center gap-3">
-            <RadarMark />
-            <span className="text-xl font-bold tracking-tight">Radar</span>
+            <CuspMark />
+            <span className="text-xl font-bold tracking-tight">Cusp</span>
           </div>
           <h1 className="max-w-lg text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
             Everything you follow,
@@ -176,7 +176,7 @@ export default function AuthScreen() {
   );
 }
 
-function RadarMark() {
+function CuspMark() {
   return (
     <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-lg">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

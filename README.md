@@ -1,4 +1,4 @@
-# Radar — a universal tracker
+# Cusp — a universal tracker
 
 Track **anything with a date** — F1/IMSA/WEC, NHL and your friend's league, tennis, other racing, product drops, movie/TV releases, deadlines — in one place, and get reminded before it happens. Auto-imports whole schedules from public sources. Installable PWA, built to run great on iPhone.
 
@@ -67,7 +67,7 @@ Discover -> search or pick a featured source -> **Follow**. It fetches the sched
 ## Notifications (built for iPhone)
 Three layers, in order of reliability on iOS:
 
-1. **Calendar feed** — Settings -> *Add to Calendar* subscribes Apple/Google Calendar to your private `webcal` feed. It auto-updates and the phone fires the alarms itself, even when Radar is closed. Most reliable, works today.
+1. **Calendar feed** — Settings -> *Add to Calendar* subscribes Apple/Google Calendar to your private `webcal` feed. It auto-updates and the phone fires the alarms itself, even when Cusp is closed. Most reliable, works today.
 2. **Web Push** — Settings -> *Enable*. On iPhone: Share -> **Add to Home Screen**, open from that icon first. Uses Declarative Web Push (iOS 18.4+) with a service-worker fallback. Background delivery is driven by the reminder cron.
 3. **Badging** — the home-screen icon shows a count of events in the next 24h.
 
