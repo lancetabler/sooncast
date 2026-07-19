@@ -172,6 +172,17 @@ describe("watch links", () => {
     expect(streamingService({ title: "MotoGP Grand Prix of Japan" })?.name).toBe("MotoGP VideoPass");
     expect(streamingService({ title: "Bruins at Rangers", sourceLabel: "NHL" })).toBeNull();
   });
+
+  it("does NOT mistake other 'Grand Prix' series for F1", () => {
+    // IndyCar's Grand Prix of Nashville must go to FOX, not F1 TV.
+    const indy = streamingService({ title: "Grand Prix of Nashville", sourceLabel: "IndyCar Series" });
+    expect(indy?.name).toBe("FOX Sports");
+    expect(indy?.url).toContain("fox.com");
+    // NASCAR is multi-network — a where-to-watch schedule link, not a single OTT.
+    const nascar = streamingService({ title: "NASCAR Cup Series at North Wilkesboro", sourceLabel: "NASCAR Cup Series" });
+    expect(nascar?.url).toContain("nascar.com");
+    expect(nascar?.cta).toMatch(/where to watch/i);
+  });
 });
 
 describe("live sources helpers", () => {

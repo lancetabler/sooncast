@@ -269,7 +269,7 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
         >
-          <Play className="size-4" /> Watch on {service.name}
+          <Play className="size-4" /> {service.cta ?? `Watch on ${service.name}`}
         </a>
       )}
 

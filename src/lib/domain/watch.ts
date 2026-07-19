@@ -6,6 +6,8 @@
 export interface WatchLink {
   name: string;
   url?: string;
+  /** Overrides the default "Watch on {name}" button label (e.g. for schedule/where-to-watch pages). */
+  cta?: string;
 }
 
 const NETWORK_URLS: Record<string, string> = {
@@ -112,18 +114,25 @@ export function watchLinks(note: string | null | undefined): WatchLink[] {
     .map((name) => ({ name, url: urlFor(name) }));
 }
 
-// OTT services by series — checked most-specific first so "MotoGP Grand Prix" doesn't hit the F1 rule.
+// Where-to-watch by series. Matched against the event's SERIES identity (sourceLabel first),
+// not loose title words — many series call a round a "Grand Prix", so that word must NOT
+// route to F1. Order matters: specific series before the generic F1 rule.
 const SERVICES: Array<{ pattern: RegExp; link: WatchLink }> = [
-  { pattern: /motogp|moto gp/i, link: { name: "MotoGP VideoPass", url: "https://www.motogp.com/en/videopass" } },
+  { pattern: /motogp|moto2|moto3|moto gp/i, link: { name: "MotoGP VideoPass", url: "https://www.motogp.com/en/videopass" } },
+  // IndyCar (incl. Indy NXT / Indy 500) is FOX-exclusive in the US.
+  { pattern: /indycar|indy car|indy nxt|indy 500|indianapolis 500/i, link: { name: "FOX Sports", url: "https://www.fox.com/sports/motorsports/indycar-series" } },
+  // NASCAR is split across FOX/FS1, Prime Video, TNT and NBC/USA — link to the schedule that lists each race's channel.
+  { pattern: /nascar|arca/i, link: { name: "NASCAR", url: "https://www.nascar.com/schedule/", cta: "Where to watch — NASCAR schedule & channels" } },
   { pattern: /\bwec\b|le mans|world endurance/i, link: { name: "FIAWEC+", url: "https://plus.fiawec.com" } },
-  { pattern: /\bwrc\b|rally/i, link: { name: "Rally.tv", url: "https://www.rally.tv" } },
+  { pattern: /\bwrc\b|world rally/i, link: { name: "Rally.tv", url: "https://www.rally.tv" } },
   { pattern: /\bimsa\b/i, link: { name: "IMSA / Peacock", url: "https://www.imsa.com/watchlive/" } },
-  { pattern: /\bf1\b|formula 1|formula one|grand prix/i, link: { name: "F1 TV", url: "https://f1tv.formula1.com" } },
+  { pattern: /\bf1\b|formula 1|formula one/i, link: { name: "F1 TV", url: "https://f1tv.formula1.com" } },
 ];
 
-/** The OTT service that streams this event, if we recognize the series. */
+/** The where-to-watch link for this event's series, if we recognize it. */
 export function streamingService(ev: { title: string; sourceLabel?: string | null; note?: string | null }): WatchLink | null {
-  const hay = `${ev.title} ${ev.sourceLabel ?? ""} ${ev.note ?? ""}`;
+  // sourceLabel (the series name) leads so "Grand Prix of Nashville" (IndyCar) can't match F1.
+  const hay = `${ev.sourceLabel ?? ""} ${ev.title} ${ev.note ?? ""}`;
   for (const s of SERVICES) if (s.pattern.test(hay)) return s.link;
   return null;
 }
