@@ -1,6 +1,5 @@
 import { espn, ESPN_CATALOG } from "./espn";
 import { jolpica } from "./jolpica";
-import { thesportsdb } from "./thesportsdb";
 import { icsfeed } from "./icsfeed";
 import { tmdb } from "./tmdb";
 import type { CatalogItem, NormalizedEvent, SourceProvider } from "./types";
@@ -10,7 +9,6 @@ export { leagueTeams } from "./espn";
 const PROVIDERS: Record<string, SourceProvider> = {
   espn,
   jolpica,
-  thesportsdb,
   ics: icsfeed,
   tmdb,
 };
@@ -65,7 +63,7 @@ export function featuredCatalog(): CatalogItem[] {
 export async function unifiedSearch(query: string): Promise<CatalogItem[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const searchers = [espn, thesportsdb, tmdb].filter((p) => p.search);
+  const searchers = [espn, tmdb].filter((p) => p.search);
   const results = await Promise.allSettled(searchers.map((p) => p.search!(q)));
   const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   // de-dupe by provider+ref

@@ -12,8 +12,10 @@ export async function GET(_req: Request, { params }: Ctx) {
   const user = await prisma.user.findUnique({ where: { feedToken: token } });
   if (!user) return new Response("Not found", { status: 404 });
 
+  // Keep the feed lean: recent + upcoming one-offs, plus all recurring events.
+  const cutoff = new Date(Date.now() - 45 * 86400_000);
   const events = await prisma.event.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, OR: [{ freq: { not: "none" } }, { start: { gte: cutoff } }] },
     include: { category: true },
     orderBy: { start: "asc" },
   });

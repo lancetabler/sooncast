@@ -19,6 +19,7 @@ import { CalendarView } from "./CalendarView";
 import { SettingsView } from "./SettingsView";
 import { ScoresView } from "./ScoresView";
 import { ProfileView } from "./ProfileView";
+import { CommandPalette } from "./CommandPalette";
 import { Onboarding } from "./Onboarding";
 import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [detail, setDetail] = useState<ClientEvent | null>(null);
   const [showOnboard, setShowOnboard] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
   const [savedViews, setSavedViews] = useState<{ id: string; name: string; categoryId: string; search: string }[]>([]);
 
@@ -144,6 +146,48 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     const soon = occurrences(state.events, new Date(coarseNow), new Date(coarseNow + 86400_000)).length;
     setBadge(soon);
   }, [state.events, coarseNow]);
+
+  // Refresh when returning to the app — a cron may have imported events or scores may have moved.
+  useEffect(() => {
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const t = Date.now();
+      if (t - last < 8000) return;
+      last = t;
+      refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refresh]);
+
+  // Keyboard: ⌘K/Ctrl-K command palette, "n" new event, "/" search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = el?.tagName === "INPUT" || el?.tagName === "TEXTAREA" || el?.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+        return;
+      }
+      if (typing) return;
+      if (e.key === "n") {
+        e.preventDefault();
+        newEvent();
+      } else if (e.key === "/" && (view === "upcoming" || view === "calendar")) {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // poll live scores/status for ESPN games happening today
   useEffect(() => {
@@ -248,7 +292,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   return (
     <div className="flex min-h-dvh">
       <div className="app-backdrop" aria-hidden />
-      <DesktopSidebar view={view} onSelect={setView} onNew={newEvent} />
+      <DesktopSidebar view={view} onSelect={setView} onNew={newEvent} onCommand={() => setPaletteOpen(true)} />
       <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-2xl flex-col pb-24 lg:mx-0 lg:max-w-none lg:flex-1 lg:pb-8">
       {/* Header */}
       <header className="radarr-glow sticky top-0 z-30 border-b border-border/60 bg-background/70 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
@@ -420,6 +464,15 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
           </div>
         </SheetContent>
       </Sheet>
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        events={state.events}
+        onNavigate={setView}
+        onNew={newEvent}
+        onSettings={() => setSettingsOpen(true)}
+        onOpenEvent={(ev) => setDetail(ev)}
+      />
       <InstallPrompt />
       <Onboarding
         open={showOnboard}
@@ -458,7 +511,7 @@ function UpcomingSection({
   const hidden = section.items.length - items.length;
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mb-1.5">
-      <CollapsibleTrigger className="mt-2 flex w-full items-center gap-2 rounded-lg px-1 py-2 text-left transition hover:bg-secondary/40">
+      <CollapsibleTrigger className="sticky top-14 z-10 mt-2 flex w-full items-center gap-2 rounded-lg bg-background/80 px-1 py-2 text-left backdrop-blur transition hover:bg-secondary/40">
         <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.label}</span>
         <span className="tabular rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{section.items.length}</span>
@@ -564,7 +617,7 @@ function Tab({ icon, label, active, onClick }: { icon: React.ReactNode; label: s
 }
 
 // Desktop-only left rail. Mirrors the mobile bottom nav 1:1 — same items, same active accent.
-function DesktopSidebar({ view, onSelect, onNew }: { view: View; onSelect: (v: View) => void; onNew: () => void }) {
+function DesktopSidebar({ view, onSelect, onNew, onCommand }: { view: View; onSelect: (v: View) => void; onNew: () => void; onCommand: () => void }) {
   return (
     <aside className="sticky top-0 z-30 hidden h-dvh w-60 shrink-0 flex-col gap-1 border-r border-border/60 bg-background/50 px-3 py-4 backdrop-blur-xl lg:flex">
       <div className="mb-3 flex items-center gap-2.5 px-2">
@@ -583,6 +636,13 @@ function DesktopSidebar({ view, onSelect, onNew }: { view: View; onSelect: (v: V
         className="mb-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-violet-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/30 transition hover:-translate-y-px hover:shadow-md hover:shadow-primary/40"
       >
         <Plus className="size-4" strokeWidth={2.4} /> New event
+      </button>
+      <button
+        onClick={onCommand}
+        className="mb-2 flex items-center gap-2 rounded-xl border border-border/70 bg-card/40 px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground"
+      >
+        <Search className="size-4" /> Search
+        <kbd className="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
       </button>
       <nav className="flex flex-col gap-0.5">
         <SideItem icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => onSelect("upcoming")} />

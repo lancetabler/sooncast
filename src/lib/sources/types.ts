@@ -4,6 +4,7 @@ export interface NormalizedEvent {
   title: string;
   start: string; // ISO instant
   durationMin: number;
+  allDay?: boolean;
   location?: string;
   note?: string;
   url?: string;

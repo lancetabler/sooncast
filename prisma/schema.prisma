@@ -14,9 +14,6 @@ model User {
   email        String   @unique
   passwordHash String
   displayName  String?
-  role             String  @default("USER") // USER | ADMIN (first signup is ADMIN)
-  plan             String  @default("FREE") // FREE | PRO
-  stripeCustomerId String? @unique
   timezone     String   @default("UTC")
   feedToken    String   @unique @default(cuid()) // powers the private webcal feed
   quietStart   Int? // minutes from midnight, optional quiet-hours window

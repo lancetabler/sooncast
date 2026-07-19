@@ -94,7 +94,10 @@ export function EventDialog({
     if (!f.title.trim()) return toast.error("Give it a name");
     if (!f.date) return toast.error("Pick a date");
     setBusy(true);
-    const start = new Date(`${f.date}T${f.allDay ? "00:00" : f.time || "12:00"}`).toISOString();
+    // All-day events are anchored at noon UTC so they land on the right calendar day everywhere.
+    const start = f.allDay
+      ? new Date(`${f.date}T12:00:00Z`).toISOString()
+      : new Date(`${f.date}T${f.time || "12:00"}`).toISOString();
     const payload: Partial<ClientEvent> = {
       title: f.title.trim(),
       categoryId: f.categoryId,

@@ -100,6 +100,29 @@ describe("ics", () => {
     expect(parsed[0].title).toBe("Grand Prix");
     expect(parsed[0].location).toBe("Silverstone");
     expect(new Date(parsed[0].start).toISOString()).toBe("2026-07-20T14:00:00.000Z");
+    expect(parsed[0].allDay).toBe(false);
+  });
+
+  it("parses VALUE=DATE as an all-day event anchored at noon UTC", () => {
+    const ics = "BEGIN:VEVENT\r\nUID:x\r\nSUMMARY:IMSA Race\r\nDTSTART;VALUE=DATE:20251011\r\nDTEND;VALUE=DATE:20251012\r\nEND:VEVENT";
+    const [p] = parseICS(ics);
+    expect(p.allDay).toBe(true);
+    expect(p.start).toBe("2025-10-11T12:00:00.000Z");
+    expect(p.title).toBe("IMSA Race");
+  });
+
+  it("converts a TZID datetime to the correct UTC instant", () => {
+    // 7:00 PM America/New_York in January is EST (UTC-5) → 00:00Z the next day
+    const ics = "BEGIN:VEVENT\r\nSUMMARY:Show\r\nDTSTART;TZID=America/New_York:20260115T190000\r\nEND:VEVENT";
+    const [p] = parseICS(ics);
+    expect(p.allDay).toBe(false);
+    expect(p.start).toBe("2026-01-16T00:00:00.000Z");
+  });
+
+  it("treats a trailing-Z datetime as UTC", () => {
+    const ics = "BEGIN:VEVENT\r\nSUMMARY:UTC\r\nDTSTART:20260720T140000Z\r\nEND:VEVENT";
+    const [p] = parseICS(ics);
+    expect(p.start).toBe("2026-07-20T14:00:00.000Z");
   });
 });
 

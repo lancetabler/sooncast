@@ -5,6 +5,10 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 const COOKIE = "radarr_session";
+// Fail closed: never sign real sessions with a public default in production.
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET must be set in production — refusing to run with an insecure signing key.");
+}
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-insecure-secret-change-me");
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
@@ -55,7 +59,7 @@ export async function getCurrentUser() {
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
-      id: true, email: true, displayName: true, role: true, plan: true, timezone: true,
+      id: true, email: true, displayName: true, timezone: true,
       feedToken: true, quietStart: true, quietEnd: true, defaultReminders: true, createdAt: true,
     },
   });

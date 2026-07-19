@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Plus, Search, Loader2, CalendarPlus, Check, Users, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/client/api";
 import type { CatalogItem, ClientCategory, ClientFollow } from "@/lib/client/types";
 
@@ -191,8 +192,10 @@ export function Discover({
       </p>
 
       {loading && !items.length && (
-        <div className="flex justify-center py-10 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[62px] rounded-xl" />
+          ))}
         </div>
       )}
 

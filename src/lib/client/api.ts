@@ -44,7 +44,7 @@ export const api = {
   leagueTeams: (ref: string) =>
     req<{ items: CatalogItem[] }>(`/api/sources/teams?ref=${encodeURIComponent(ref)}`),
   addFollow: (b: { provider: string; ref: string; label: string; categorySlug?: string | null }) =>
-    req<{ result: { added: number; updated: number; skippedForLimit: number } }>("/api/follows", {
+    req<{ result: { added: number; updated: number } }>("/api/follows", {
       method: "POST",
       body: JSON.stringify(b),
     }),

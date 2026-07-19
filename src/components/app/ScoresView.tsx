@@ -42,16 +42,33 @@ function GameCard({ game }: { game: ScoreGame }) {
   );
 }
 
+// Module-level cache so re-opening the Scores tab is instant, then refreshes silently.
+let scoresCache: { at: number; leagues: LeagueOverview[] } | null = null;
+
 export function ScoresView() {
-  const [leagues, setLeagues] = useState<LeagueOverview[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [leagues, setLeagues] = useState<LeagueOverview[] | null>(
+    () => (scoresCache && Date.now() - scoresCache.at < 90_000 ? scoresCache.leagues : null)
+  );
+  const [loading, setLoading] = useState(!leagues);
 
   useEffect(() => {
+    let active = true;
     api
       .sportsOverview()
-      .then((r) => setLeagues(r.leagues))
-      .catch(() => setLeagues([]))
-      .finally(() => setLoading(false));
+      .then((r) => {
+        if (!active) return;
+        scoresCache = { at: Date.now(), leagues: r.leagues };
+        setLeagues(r.leagues);
+      })
+      .catch(() => {
+        if (active) setLeagues((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {

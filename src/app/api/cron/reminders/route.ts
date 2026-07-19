@@ -43,7 +43,13 @@ async function run(req: Request) {
 
   const users = await prisma.user.findMany({
     where: { subscriptions: { some: {} } },
-    include: { subscriptions: true, events: true, follows: true },
+    include: {
+      subscriptions: true,
+      follows: true,
+      // Only load events that could fire in this window: one-offs in range, plus all
+      // recurring events (any base date can recur into it). Keeps this per-minute query small.
+      events: { where: { start: { lte: to }, OR: [{ freq: { not: "none" } }, { start: { gte: from } }] } },
+    },
   });
 
   let sent = 0;

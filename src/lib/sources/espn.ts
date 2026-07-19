@@ -24,10 +24,9 @@ function normalizeEvent(e: any, leagueName: string): NormalizedEvent | null {
   if (!start) return null;
   const comp = e?.competitions?.[0];
   const v = comp?.venue;
-  const venue =
-    v?.fullName ||
-    [v?.address?.city, v?.address?.state || v?.address?.country].filter(Boolean).join(", ") ||
-    undefined;
+  const city = [v?.address?.city, v?.address?.state || v?.address?.country].filter(Boolean).join(", ");
+  // Include the city alongside the venue so it reads well and weather can geocode it.
+  const venue = v?.fullName ? (city ? `${v.fullName}, ${city}` : v.fullName) : city || undefined;
   const logo =
     comp?.competitors?.find((c: any) => c?.homeAway === "home")?.team?.logo ||
     comp?.competitors?.[0]?.team?.logo;

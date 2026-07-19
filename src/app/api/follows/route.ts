@@ -4,7 +4,7 @@ import { requireUser, isResponse, ok, bad } from "@/lib/api";
 import { runFollowImport } from "@/lib/import";
 
 const schema = z.object({
-  provider: z.enum(["espn", "jolpica", "thesportsdb", "ics", "tmdb"]),
+  provider: z.enum(["espn", "jolpica", "ics", "tmdb"]),
   ref: z.string().min(1).max(500),
   label: z.string().min(1).max(120),
   categorySlug: z.string().max(40).nullable().optional(),

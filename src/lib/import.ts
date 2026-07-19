@@ -25,7 +25,6 @@ export async function ensureCategory(userId: string, slug: string | null): Promi
 export interface ImportResult {
   added: number;
   updated: number;
-  skippedForLimit: number;
 }
 
 /** Fetch a follow's source and upsert its events for the user. */
@@ -47,7 +46,7 @@ export async function runFollowImport(
   });
 
   const categoryId = await ensureCategory(userId, follow.categorySlug);
-  const result: ImportResult = { added: 0, updated: 0, skippedForLimit: 0 };
+  const result: ImportResult = { added: 0, updated: 0 };
 
   if (normalized.length) {
     // One query to load everything that already exists, instead of one per game.
@@ -68,6 +67,7 @@ export async function runFollowImport(
           categoryId,
           title: n.title,
           start,
+          allDay: n.allDay ?? false,
           durationMin: n.durationMin,
           location: n.location ?? null,
           note: n.note ?? null,
@@ -84,6 +84,7 @@ export async function runFollowImport(
         const changed =
           ex.title !== n.title ||
           ex.start.getTime() !== start.getTime() ||
+          ex.allDay !== (n.allDay ?? false) ||
           (ex.location ?? null) !== (n.location ?? null) ||
           (ex.url ?? null) !== (n.url ?? null) ||
           (ex.note ?? null) !== (n.note ?? null) ||
@@ -95,6 +96,7 @@ export async function runFollowImport(
               data: {
                 title: n.title,
                 start,
+                allDay: n.allDay ?? false,
                 durationMin: n.durationMin,
                 location: n.location ?? null,
                 note: n.note ?? null,

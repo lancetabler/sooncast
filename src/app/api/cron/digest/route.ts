@@ -19,7 +19,13 @@ async function run(req: Request) {
   const from = new Date(now);
   const to = new Date(now + 18 * 3600_000);
 
-  const users = await prisma.user.findMany({ include: { subscriptions: true, events: true, follows: true } });
+  const users = await prisma.user.findMany({
+    include: {
+      subscriptions: true,
+      follows: true,
+      events: { where: { start: { lte: to }, OR: [{ freq: { not: "none" } }, { start: { gte: from } }] } },
+    },
+  });
   let sent = 0;
 
   for (const user of users) {

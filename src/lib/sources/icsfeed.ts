@@ -16,6 +16,7 @@ export const icsfeed: SourceProvider = {
         title: p.title,
         start: p.start,
         durationMin: p.durationMin,
+        allDay: p.allDay,
         location: p.location,
         note: p.note,
       }));

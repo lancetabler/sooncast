@@ -165,9 +165,12 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
     const days = (start.getTime() - Date.now()) / 86400000;
     if (days < -0.5 || days > 15) return; // only within the forecast window
     let active = true;
+    // Prefer the geographic tail (e.g. "Toronto, ON") over a venue name that won't geocode.
+    const loc = event.location!;
+    const geoQuery = loc.includes(",") ? loc.split(",").slice(-2).join(",").trim() : loc;
     (async () => {
       try {
-        const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(event.location!)}&count=1`).then((r) => r.json());
+        const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geoQuery)}&count=1`).then((r) => r.json());
         const loc = geo?.results?.[0];
         if (!loc) return;
         const fc = await fetch(
