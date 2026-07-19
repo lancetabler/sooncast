@@ -225,7 +225,8 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   if (event.freq && event.freq !== "none") rows.push(["Repeats", event.freq]);
   if (event.location) rows.push(["Location", event.location]);
   if (event.reminders.length) rows.push(["Reminders", event.reminders.map(reminderLabel).join(", ")]);
-  if (event.sourceLabel) rows.push(["Source", event.sourceLabel]);
+  if (event.sourceLabel)
+    rows.push(["Source", event.sourceProvider === "thesportsdb" ? `${event.sourceLabel} · community data` : event.sourceLabel]);
   if (event.url)
     rows.push([
       "Link",
@@ -303,6 +304,13 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
           </div>
         ))}
       </div>
+
+      {event.sourceProvider === "thesportsdb" && (
+        <p className="rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+          ⚠️ This schedule is community-maintained (TheSportsDB), so dates and times aren&apos;t guaranteed — double-check
+          before planning around one.
+        </p>
+      )}
 
       <div className="flex gap-2">
         <Button variant="secondary" className="flex-1" onClick={() => downloadICS(event, category?.emoji ?? "")}>

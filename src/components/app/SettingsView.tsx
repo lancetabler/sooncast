@@ -468,7 +468,7 @@ export function SettingsView({
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{f.label}</div>
               <div className="text-xs text-muted-foreground">
-                {f.count} events{f.muted ? " · muted" : ""}{f.lastSync ? ` · synced ${new Date(f.lastSync).toLocaleDateString()}` : ""}
+                {f.count} events{f.provider === "thesportsdb" ? " · community data" : ""}{f.muted ? " · muted" : ""}{f.lastSync ? ` · synced ${new Date(f.lastSync).toLocaleDateString()}` : ""}
               </div>
             </div>
             <div className="flex shrink-0 gap-1">

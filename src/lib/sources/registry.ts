@@ -92,8 +92,10 @@ export function featuredCatalog(): CatalogItem[] {
   // TheSportsDB entries only appear once its key is configured.
   const racing = ESPN_CATALOG.filter((c) => c.categorySlug === "racing");
   const rest = ESPN_CATALOG.filter((c) => c.categorySlug !== "racing");
-  const tsdbRacing = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug === "racing") : [];
-  const tsdbRest = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug !== "racing") : [];
+  // TheSportsDB is community-maintained — say so up front, before the user follows.
+  const communal = (c: CatalogItem): CatalogItem => ({ ...c, sublabel: `${c.sublabel} · community data` });
+  const tsdbRacing = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug === "racing").map(communal) : [];
+  const tsdbRest = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug !== "racing").map(communal) : [];
   return [
     { provider: "jolpica", ref: "current", label: "Formula 1", sublabel: "Full season — races, quali & sprints", categorySlug: "f1" },
     ...racing,
