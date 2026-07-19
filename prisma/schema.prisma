@@ -127,6 +127,12 @@ model PushSubscription {
   @@index([userId])
 }
 
+// Last-run timestamp per cron job — powers the "Notifications health" panel.
+model CronRun {
+  name String   @id // reminders | sync-sources | digest
+  at   DateTime @default(now())
+}
+
 // Dedupe log so the cron never sends the same reminder twice.
 model ReminderLog {
   id     String   @id @default(cuid())

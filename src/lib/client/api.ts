@@ -1,4 +1,4 @@
-import type { ClientEvent, ClientCategory, StateBundle, CatalogItem, LiveStatus, LeagueOverview } from "./types";
+import type { ClientEvent, ClientCategory, StateBundle, CatalogItem, LiveStatus, LeagueOverview, CronStatus } from "./types";
 
 async function req<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -59,6 +59,12 @@ export const api = {
     quietStart?: number | null;
     quietEnd?: number | null;
   }) => req("/api/settings", { method: "PATCH", body: JSON.stringify(b) }),
+
+  cronStatus: () => req<CronStatus>("/api/cron/status"),
+  changePassword: (b: { currentPassword: string; newPassword: string }) =>
+    req("/api/auth/change-password", { method: "POST", body: JSON.stringify(b) }),
+  deleteAccount: (b: { password: string }) =>
+    req("/api/auth/delete", { method: "POST", body: JSON.stringify(b) }),
 
   subscribePush: (sub: PushSubscriptionJSON) =>
     req("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),

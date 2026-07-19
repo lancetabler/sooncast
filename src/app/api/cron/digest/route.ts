@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ok, bad } from "@/lib/api";
+import { authorizeCron, recordCronRun } from "@/lib/cron";
 import { expandAll } from "@/lib/domain/recurrence";
 import { parseIntArray } from "@/lib/serialize";
 import { sendPush, pushReady } from "@/lib/push";
@@ -7,21 +8,11 @@ import type { TrackEvent } from "@/lib/domain/types";
 
 export const dynamic = "force-dynamic";
 
-function authorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const url = new URL(req.url);
-  return (
-    req.headers.get("x-cron-secret") === secret ||
-    req.headers.get("authorization") === `Bearer ${secret}` ||
-    url.searchParams.get("secret") === secret
-  );
-}
-
 // A once-a-day "here's your day" summary. Point a daily pinger at this at your
 // preferred morning time. Covers events in the next ~18 hours.
 async function run(req: Request) {
-  if (!authorized(req)) return bad("Unauthorized", 401);
+  if (!authorizeCron(req)) return bad("Unauthorized", 401);
+  await recordCronRun("digest");
   if (!pushReady()) return ok({ ok: true, note: "push not configured" });
 
   const now = Date.now();

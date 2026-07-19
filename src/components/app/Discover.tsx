@@ -16,17 +16,26 @@ function FollowPill({
   followed,
   adding,
   onFollow,
+  onUnfollow,
 }: {
   item: CatalogItem;
   followed: boolean;
   adding: boolean;
   onFollow: (item: CatalogItem) => void;
+  onUnfollow: (item: CatalogItem) => void;
 }) {
   if (followed) {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-        <Check className="size-3.5" /> Following
-      </span>
+      <button
+        onClick={() => onUnfollow(item)}
+        disabled={adding}
+        title="Tap to unfollow"
+        className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-60"
+      >
+        {adding ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5 group-hover:hidden" />}
+        <span className="group-hover:hidden">Following</span>
+        <span className="hidden group-hover:inline">Unfollow</span>
+      </button>
     );
   }
   return (
@@ -70,6 +79,7 @@ export function Discover({
   const [feedBusy, setFeedBusy] = useState(false);
 
   const followedKeys = new Set(follows.map((f) => followKey(f.provider, f.ref)));
+  const followIdByKey = new Map(follows.map((f) => [followKey(f.provider, f.ref), f.id]));
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -105,6 +115,23 @@ export function Discover({
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) toast("Already following this");
       else toast.error(err instanceof ApiError ? err.message : "Couldn't follow that");
+    } finally {
+      setAddingKey(null);
+    }
+  }
+
+  async function unfollow(item: CatalogItem) {
+    const key = followKey(item.provider, item.ref);
+    const id = followIdByKey.get(key);
+    if (!id) return;
+    if (!confirm(`Unfollow ${item.label}? This removes its imported events.`)) return;
+    setAddingKey(key);
+    try {
+      await api.deleteFollow(id);
+      toast.success(`Unfollowed ${item.label}`);
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't unfollow");
     } finally {
       setAddingKey(null);
     }
@@ -199,7 +226,7 @@ export function Discover({
                     <ChevronDown className={`size-3 transition ${isOpen ? "rotate-180" : ""}`} />
                   </button>
                 )}
-                <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} />
+                <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} onUnfollow={unfollow} />
               </div>
 
               {canBrowse && isOpen && (
@@ -223,7 +250,7 @@ export function Discover({
                               <span className="size-6 shrink-0" />
                             )}
                             <span className="min-w-0 flex-1 truncate text-sm">{t.label}</span>
-                            <FollowPill item={t} followed={followedKeys.has(followKey(t.provider, t.ref))} adding={addingKey === followKey(t.provider, t.ref)} onFollow={follow} />
+                            <FollowPill item={t} followed={followedKeys.has(followKey(t.provider, t.ref))} adding={addingKey === followKey(t.provider, t.ref)} onFollow={follow} onUnfollow={unfollow} />
                           </div>
                         ))}
                       </div>

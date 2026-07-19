@@ -1,17 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { BellRing, BellOff, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save } from "lucide-react";
+import {
+  BellRing, BellOff, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save,
+  Clock, Globe, Activity, KeyRound, CheckCircle2, AlertTriangle, ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/client/api";
 import { enablePush, isStandalone, pushSupported } from "@/lib/client/push";
 import { REMINDER_PRESETS, reminderLabel } from "@/lib/domain/format";
 import { buildICS } from "@/lib/domain/ics";
 import { PALETTE, EMOJI_CHOICES } from "@/lib/domain/categories";
-import type { StateBundle, TrackEvent } from "@/lib/client/types";
+import type { StateBundle, TrackEvent, CronStatus } from "@/lib/client/types";
 import type { ClientEvent } from "@/lib/client/types";
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+function minToTime(min: number) {
+  return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
+}
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+function ago(iso: string | null): string {
+  if (!iso) return "never run";
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+function jobHealthy(name: string, iso: string | null): boolean {
+  if (!iso) return false;
+  const age = Date.now() - new Date(iso).getTime();
+  return name === "reminders" ? age < 10 * 60_000 : age < 36 * 3600_000;
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -38,6 +68,89 @@ export function SettingsView({
   const [pushBusy, setPushBusy] = useState(false);
   const webcal = user.feedUrl.replace(/^https?:\/\//, "webcal://");
   const { theme, setTheme } = useTheme();
+
+  const [name, setName] = useState(user.displayName ?? "");
+  const [savingName, setSavingName] = useState(false);
+  const [quietOn, setQuietOn] = useState(user.quietStart != null && user.quietEnd != null);
+  const [quietStart, setQuietStart] = useState(user.quietStart ?? 22 * 60);
+  const [quietEnd, setQuietEnd] = useState(user.quietEnd ?? 8 * 60);
+  const [cron, setCron] = useState<CronStatus | null>(null);
+  const [cpCur, setCpCur] = useState("");
+  const [cpNew, setCpNew] = useState("");
+  const [cpBusy, setCpBusy] = useState(false);
+  const [delPw, setDelPw] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
+
+  const timeZones = useMemo<string[]>(() => {
+    try {
+      const list = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone");
+      return list && list.length ? list : [user.timezone];
+    } catch {
+      return [user.timezone];
+    }
+  }, [user.timezone]);
+
+  useEffect(() => {
+    api.cronStatus().then(setCron).catch(() => {});
+  }, []);
+
+  async function saveName() {
+    setSavingName(true);
+    try {
+      await api.saveSettings({ displayName: name.trim() || null });
+      toast.success("Name saved");
+      onChanged();
+    } catch {
+      toast.error("Couldn't save");
+    } finally {
+      setSavingName(false);
+    }
+  }
+  async function saveTimezone(tz: string) {
+    try {
+      await api.saveSettings({ timezone: tz });
+      toast.success("Time zone updated");
+      onChanged();
+    } catch {
+      toast.error("Couldn't save");
+    }
+  }
+  async function saveQuiet(on: boolean, s: number, e: number) {
+    setQuietOn(on);
+    setQuietStart(s);
+    setQuietEnd(e);
+    try {
+      await api.saveSettings({ quietStart: on ? s : null, quietEnd: on ? e : null });
+    } catch {
+      toast.error("Couldn't save quiet hours");
+    }
+  }
+  async function changePassword() {
+    if (cpNew.length < 8) return toast.error("New password must be at least 8 characters");
+    setCpBusy(true);
+    try {
+      await api.changePassword({ currentPassword: cpCur, newPassword: cpNew });
+      toast.success("Password changed");
+      setCpCur("");
+      setCpNew("");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't change password");
+    } finally {
+      setCpBusy(false);
+    }
+  }
+  async function deleteAccount() {
+    if (!delPw) return toast.error("Enter your password to confirm");
+    if (!confirm("Permanently delete your account and ALL your data? This cannot be undone.")) return;
+    setDelBusy(true);
+    try {
+      await api.deleteAccount({ password: delPw });
+      window.location.href = "/";
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't delete account");
+      setDelBusy(false);
+    }
+  }
 
   async function turnOnPush() {
     setPushBusy(true);
@@ -167,6 +280,15 @@ export function SettingsView({
             <div className="text-xs text-muted-foreground">Signed in</div>
           </div>
         </Row>
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-3.5">
+          <label htmlFor="set-name" className="text-xs text-muted-foreground">Display name</label>
+          <div className="flex gap-2">
+            <Input id="set-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+            <Button size="sm" onClick={saveName} disabled={savingName || name.trim() === (user.displayName ?? "")}>
+              Save
+            </Button>
+          </div>
+        </div>
         <Button variant="ghost" onClick={onLogout} className="justify-start text-muted-foreground">
           <LogOut data-icon="inline-start" /> Sign out
         </Button>
@@ -193,6 +315,58 @@ export function SettingsView({
             On iPhone: Share → <b>Add to Home Screen</b>, then open Radarr from that icon before enabling push.
           </p>
         )}
+      </Section>
+
+      <Section title="Automations & delivery health">
+        <div className="rounded-xl border border-border/70 bg-card p-3.5">
+          <div className="mb-1 flex items-center gap-1.5 text-sm font-medium">
+            <Activity className="size-4 text-primary" /> Background jobs
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            These keep reminders firing on time and schedules fresh. Point a free scheduler
+            (<a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="text-primary">cron-job.org</a>)
+            at each URL below at the suggested interval.
+          </p>
+          {!cron ? (
+            <div className="py-2 text-xs text-muted-foreground">Checking…</div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {cron.jobs.map((j) => {
+                const healthy = jobHealthy(j.name, j.lastRun);
+                return (
+                  <div key={j.name} className="rounded-lg border border-border/60 bg-secondary/30 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`size-2 shrink-0 rounded-full ${healthy ? "bg-emerald-400" : j.lastRun ? "bg-amber-400" : "bg-muted-foreground/50"}`} />
+                      <span className="flex-1 text-sm font-medium">{j.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{j.recommended}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2 pl-4">
+                      <span className="text-[11px] text-muted-foreground">
+                        {healthy ? <CheckCircle2 className="mr-1 inline size-3 text-emerald-400" /> : <AlertTriangle className="mr-1 inline size-3 text-amber-400" />}
+                        Last run: {ago(j.lastRun)}
+                      </span>
+                      {j.url && (
+                        <button
+                          onClick={() => { navigator.clipboard?.writeText(j.url!); toast.success("URL copied"); }}
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          <Copy className="size-3" /> Copy URL
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-muted-foreground">
+                <span>Push {cron.push ? <span className="text-emerald-400">configured</span> : <span className="text-amber-400">not configured</span>}</span>
+                {!cron.hasSecret && <span className="text-amber-400">CRON_SECRET not set — jobs are unprotected</span>}
+                <a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">
+                  Set up pingers <ExternalLink className="size-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
       </Section>
 
       <Section title="Calendar feed — reliable iPhone alerts">
@@ -232,6 +406,58 @@ export function SettingsView({
               </button>
             );
           })}
+        </div>
+      </Section>
+
+      <Section title="Timing">
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-3.5">
+          <label htmlFor="set-tz" className="flex items-center gap-1.5 text-sm font-medium">
+            <Globe className="size-4 text-primary" /> Time zone
+          </label>
+          <p className="text-xs text-muted-foreground">Used for quiet hours and your calendar feed.</p>
+          <select
+            id="set-tz"
+            value={user.timezone}
+            onChange={(e) => saveTimezone(e.target.value)}
+            className="mt-1 rounded-md border border-border bg-card px-3 py-2 text-sm"
+          >
+            {(timeZones.includes(user.timezone) ? timeZones : [user.timezone, ...timeZones]).map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-3.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              <Clock className="size-4 text-primary" /> Quiet hours
+            </span>
+            <button
+              onClick={() => saveQuiet(!quietOn, quietStart, quietEnd)}
+              className={`relative h-6 w-11 rounded-full transition ${quietOn ? "bg-primary" : "bg-secondary"}`}
+              aria-label="Toggle quiet hours"
+            >
+              <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${quietOn ? "left-[1.375rem]" : "left-0.5"}`} />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">No notifications will be sent during this window.</p>
+          {quietOn && (
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="time"
+                value={minToTime(quietStart)}
+                onChange={(e) => saveQuiet(true, timeToMin(e.target.value), quietEnd)}
+                className="rounded-md border border-border bg-card px-2 py-1.5"
+              />
+              <span className="text-muted-foreground">to</span>
+              <input
+                type="time"
+                value={minToTime(quietEnd)}
+                onChange={(e) => saveQuiet(true, quietStart, timeToMin(e.target.value))}
+                className="rounded-md border border-border bg-card px-2 py-1.5"
+              />
+            </div>
+          )}
         </div>
       </Section>
 
@@ -303,6 +529,32 @@ export function SettingsView({
         <Button variant="secondary" onClick={restoreBackup} className="justify-start">
           <Upload data-icon="inline-start" /> Restore from backup
         </Button>
+      </Section>
+
+      <Section title="Security">
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-3.5">
+          <div className="flex items-center gap-1.5 text-sm font-medium">
+            <KeyRound className="size-4 text-primary" /> Change password
+          </div>
+          <Input type="password" autoComplete="current-password" value={cpCur} onChange={(e) => setCpCur(e.target.value)} placeholder="Current password" />
+          <Input type="password" autoComplete="new-password" value={cpNew} onChange={(e) => setCpNew(e.target.value)} placeholder="New password (8+ characters)" />
+          <Button size="sm" onClick={changePassword} disabled={cpBusy || !cpCur || !cpNew} className="self-start">
+            {cpBusy ? "Saving…" : "Update password"}
+          </Button>
+        </div>
+      </Section>
+
+      <Section title="Danger zone">
+        <div className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3.5">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+            <AlertTriangle className="size-4" /> Delete account
+          </div>
+          <p className="text-xs text-muted-foreground">Permanently removes your account, events, sources and history. This can&apos;t be undone.</p>
+          <Input type="password" autoComplete="current-password" value={delPw} onChange={(e) => setDelPw(e.target.value)} placeholder="Confirm your password" />
+          <Button size="sm" variant="destructive" onClick={deleteAccount} disabled={delBusy || !delPw} className="self-start">
+            {delBusy ? "Deleting…" : "Delete my account"}
+          </Button>
+        </div>
       </Section>
 
       <p className="pt-2 text-center text-xs text-muted-foreground">Radarr · your data is private to your account.</p>

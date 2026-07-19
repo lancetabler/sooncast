@@ -51,6 +51,8 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [state, setState] = useState<StateBundle>(initial);
   const [view, setView] = useState<View>("upcoming");
   const [filter, setFilter] = useState<string>("all");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [hideWatched, setHideWatched] = useState(false);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -89,6 +91,20 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   }
 
   const catById = useMemo(() => new Map(state.categories.map((c) => [c.id, c])), [state.categories]);
+
+  // Names of teams the user follows directly — used to highlight/filter their games.
+  const favoriteTeams = useMemo(
+    () => state.follows.filter((f) => f.ref.includes("/teams/")).map((f) => f.label.toLowerCase()).filter(Boolean),
+    [state.follows]
+  );
+  const isFavorite = useCallback(
+    (title: string) => {
+      if (!favoriteTeams.length) return false;
+      const t = title.toLowerCase();
+      return favoriteTeams.some((name) => t.includes(name));
+    },
+    [favoriteTeams]
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -153,7 +169,12 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const sections = useMemo<Section[]>(() => {
     const from = new Date(coarseNow - 3 * 3600_000);
     const to = new Date(coarseNow + 400 * 86400_000);
-    const occ = occurrences(state.events, from, to, { categoryId: filter, search });
+    const occ = occurrences(state.events, from, to, {
+      categoryId: filter,
+      search,
+      favoriteTeams: favoritesOnly ? favoriteTeams : undefined,
+      hideWatched,
+    });
     const map = new Map<string, Section>();
     const order = new Map<string, number>();
     for (const o of occ) {
@@ -167,26 +188,12 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       entry.items.push(o);
     }
     return [...map.values()].sort((a, b) => order.get(a.key)! - order.get(b.key)!);
-  }, [state.events, filter, search, coarseNow]);
+  }, [state.events, filter, search, coarseNow, favoritesOnly, favoriteTeams, hideWatched]);
 
   const usedCategories = useMemo(() => {
     const ids = new Set(state.events.map((e) => e.categoryId));
     return state.categories.filter((c) => ids.has(c.id));
   }, [state.events, state.categories]);
-
-  // Names of teams the user follows directly — used to highlight their games in a full-season feed.
-  const favoriteTeams = useMemo(
-    () => state.follows.filter((f) => f.ref.includes("/teams/")).map((f) => f.label.toLowerCase()).filter(Boolean),
-    [state.follows]
-  );
-  const isFavorite = useCallback(
-    (title: string) => {
-      if (!favoriteTeams.length) return false;
-      const t = title.toLowerCase();
-      return favoriteTeams.some((name) => t.includes(name));
-    },
-    [favoriteTeams]
-  );
 
   const nextUp = useMemo(() => {
     for (const sec of sections) {
@@ -296,15 +303,22 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         </div>
       )}
 
-      {/* Category filter chips */}
-      {(view === "upcoming" || view === "calendar") && usedCategories.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-3">
-          <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
-          {usedCategories.map((c) => (
-            <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={`${c.emoji} ${c.name}`} color={c.color} />
-          ))}
-        </div>
-      )}
+      {/* Category filter chips + quick toggles */}
+      {(view === "upcoming" || view === "calendar") &&
+        (usedCategories.length > 0 || favoriteTeams.length > 0 || state.events.some((e) => e.watchedAt)) && (
+          <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-3">
+            <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
+            {usedCategories.map((c) => (
+              <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={`${c.emoji} ${c.name}`} color={c.color} />
+            ))}
+            {favoriteTeams.length > 0 && (
+              <Chip active={favoritesOnly} onClick={() => setFavoritesOnly((v) => !v)} label="⭐ Favorites" />
+            )}
+            {state.events.some((e) => e.watchedAt) && (
+              <Chip active={hideWatched} onClick={() => setHideWatched((v) => !v)} label={hideWatched ? "🙈 Watched hidden" : "👁 Hide watched"} />
+            )}
+          </div>
+        )}
 
       {/* Main */}
       <main className="flex-1 px-4 py-2">

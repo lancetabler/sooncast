@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Newspaper, Trophy, Radio } from "lucide-react";
+import { Newspaper, Trophy, Radio } from "lucide-react";
 import { api } from "@/lib/client/api";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { LeagueOverview, ScoreGame, ScoreTeam } from "@/lib/client/types";
 
 function TeamLine({ team, winner }: { team?: ScoreTeam; winner: boolean }) {
@@ -55,8 +56,17 @@ export function ScoresView() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20 text-muted-foreground">
-        <Loader2 className="size-6 animate-spin" />
+      <div className="flex flex-col gap-7 pb-4">
+        {[0, 1].map((s) => (
+          <div key={s} className="flex flex-col gap-3">
+            <Skeleton className="h-5 w-32" />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Skeleton className="h-[68px] rounded-xl" />
+              <Skeleton className="h-[68px] rounded-xl" />
+            </div>
+            <Skeleton className="h-40 rounded-xl" />
+          </div>
+        ))}
       </div>
     );
   }

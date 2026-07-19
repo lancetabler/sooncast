@@ -1,26 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { ok, bad } from "@/lib/api";
+import { authorizeCron, recordCronRun } from "@/lib/cron";
 import { runFollowImport } from "@/lib/import";
 import { sendPush, pushReady } from "@/lib/push";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-function authorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const url = new URL(req.url);
-  return (
-    req.headers.get("x-cron-secret") === secret ||
-    req.headers.get("authorization") === `Bearer ${secret}` ||
-    url.searchParams.get("secret") === secret
-  );
-}
-
 // Re-imports every followed source so schedules stay current, and pushes a
 // summary when genuinely new fixtures appear. Run daily via an external pinger.
 async function run(req: Request) {
-  if (!authorized(req)) return bad("Unauthorized", 401);
+  if (!authorizeCron(req)) return bad("Unauthorized", 401);
+  await recordCronRun("sync-sources");
 
   const users = await prisma.user.findMany({ include: { follows: true, subscriptions: true } });
   let totalFollows = 0;

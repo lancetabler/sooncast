@@ -82,6 +82,11 @@ export function EventCard({
         <span className="mt-0.5 text-xs text-muted-foreground/80">{DOW[start.getDay()]}</span>
       </div>
 
+      {occ.event.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={occ.event.imageUrl} alt="" className="size-9 shrink-0 self-center rounded-lg object-contain" />
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
         <span className="flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color }}>
           {category?.emoji} {category?.name ?? "Event"}

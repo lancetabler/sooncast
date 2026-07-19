@@ -55,3 +55,17 @@ export interface LeagueOverview {
   standings: StandingRow[];
   scores: ScoreGame[];
 }
+
+export interface CronJobStatus {
+  name: string;
+  label: string;
+  recommended: string;
+  lastRun: string | null;
+  url: string | null;
+}
+export interface CronStatus {
+  appUrl: string;
+  hasSecret: boolean;
+  push: boolean;
+  jobs: CronJobStatus[];
+}

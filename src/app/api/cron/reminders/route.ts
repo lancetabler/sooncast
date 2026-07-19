@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ok, bad } from "@/lib/api";
+import { authorizeCron, recordCronRun } from "@/lib/cron";
 import { expandAll, reminderFires } from "@/lib/domain/recurrence";
 import { reminderLabel } from "@/lib/domain/format";
 import { parseIntArray } from "@/lib/serialize";
@@ -14,17 +15,6 @@ const MAX_REMINDER_MIN = 10080; // 1 week — how far ahead a fire's occurrence 
 
 export const maxDuration = 60; // allow the batch to finish on slower runs
 export const dynamic = "force-dynamic";
-
-function authorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // if unset (local dev), allow
-  const url = new URL(req.url);
-  return (
-    req.headers.get("x-cron-secret") === secret ||
-    req.headers.get("authorization") === `Bearer ${secret}` ||
-    url.searchParams.get("secret") === secret
-  );
-}
 
 function minutesOfDayInTz(now: Date, tz: string): number | null {
   try {
@@ -43,7 +33,8 @@ function inQuietHours(mins: number, start: number, end: number): boolean {
 }
 
 async function run(req: Request) {
-  if (!authorized(req)) return bad("Unauthorized", 401);
+  if (!authorizeCron(req)) return bad("Unauthorized", 401);
+  await recordCronRun("reminders");
   if (!pushReady()) return ok({ ok: true, note: "push not configured", sent: 0 });
 
   const now = Date.now();
