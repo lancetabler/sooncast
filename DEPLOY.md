@@ -4,7 +4,7 @@
 
 > Heads up on two things before you start:
 > - **Vercel Hobby is non-commercial** per their ToS. Fine for launching/testing/inviting friends. Once you actually charge money (Stripe), you'll need Vercel **Pro ($20/mo)** or move to Cloudflare/Fly. Nothing in the code needs to change either way.
-> - **Vercel's built-in cron only runs daily on the free tier.** That's why we use an external 1-minute pinger for reminders (step 5). The `vercel.json` cron is already set to every minute — it "just works" the day you upgrade to Pro.
+> - **Vercel's built-in cron only runs daily on the free tier** (Hobby rejects a more-frequent schedule). So `vercel.json` ships a daily cron just to keep the free deploy happy, and the real every-minute reminders come from an external pinger (step 5). When you upgrade to Pro, change the `vercel.json` schedule to `* * * * *` and you can drop the external pinger.
 
 ---
 
