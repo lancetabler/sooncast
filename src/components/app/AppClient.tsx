@@ -25,6 +25,13 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type View = "upcoming" | "calendar" | "scores" | "discover" | "profile";
+const TITLES: Record<View, string> = {
+  upcoming: "Upcoming",
+  calendar: "Calendar",
+  scores: "Scores",
+  discover: "Discover",
+  profile: "Profile",
+};
 
 interface Section {
   key: string;
@@ -239,33 +246,39 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const totalUpcoming = sections.reduce((n, s) => n + s.items.length, 0);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-2xl flex-col pb-24">
+    <div className="flex min-h-dvh">
       <div className="app-backdrop" aria-hidden />
+      <DesktopSidebar view={view} onSelect={setView} onNew={newEvent} />
+      <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-2xl flex-col pb-24 lg:mx-0 lg:max-w-none lg:flex-1 lg:pb-8">
       {/* Header */}
-      <header className="radarr-glow sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/70 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
-        <div className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-sm shadow-primary/30">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="9" opacity=".35" />
-              <circle cx="12" cy="12" r="5" opacity=".6" />
-              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-              <path d="M12 12 L20 6" />
-            </svg>
-          </span>
-          <span className="text-lg font-bold tracking-tight">Radarr</span>
+      <header className="radarr-glow sticky top-0 z-30 border-b border-border/60 bg-background/70 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 lg:max-w-5xl">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-sm shadow-primary/30 lg:hidden">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9" opacity=".35" />
+                <circle cx="12" cy="12" r="5" opacity=".6" />
+                <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+                <path d="M12 12 L20 6" />
+              </svg>
+            </span>
+            <span className="text-lg font-bold tracking-tight lg:hidden">Radarr</span>
+            <h1 className="hidden text-lg font-bold tracking-tight lg:block">{TITLES[view]}</h1>
+          </div>
+          {(view === "upcoming" || view === "calendar") && (
+            <button onClick={() => setShowSearch((s) => !s)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Search">
+              {showSearch ? <X className="size-5" /> : <Search className="size-5" />}
+            </button>
+          )}
+          {view === "profile" && (
+            <button onClick={() => setSettingsOpen(true)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Settings">
+              <Settings2 className="size-5" />
+            </button>
+          )}
         </div>
-        {(view === "upcoming" || view === "calendar") && (
-          <button onClick={() => setShowSearch((s) => !s)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Search">
-            {showSearch ? <X className="size-5" /> : <Search className="size-5" />}
-          </button>
-        )}
-        {view === "profile" && (
-          <button onClick={() => setSettingsOpen(true)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Settings">
-            <Settings2 className="size-5" />
-          </button>
-        )}
       </header>
 
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:max-w-5xl">
       {showSearch && (view === "upcoming" || view === "calendar") && (
         <div className="px-4 pt-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search everything you track…" autoFocus />
@@ -358,26 +371,28 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}
         {view === "profile" && <ProfileView state={state} onOpenEvent={(ev) => setDetail(ev)} />}
       </main>
+      </div>
 
-      {/* FAB */}
+      {/* FAB (mobile only — desktop uses the sidebar's New button) */}
       {(view === "upcoming" || view === "calendar") && (
         <button
           onClick={newEvent}
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[max(1rem,calc(50vw-21rem))] z-40 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-lg shadow-primary/40 ring-1 ring-white/15 transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/50 active:scale-95"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[max(1rem,calc(50vw-21rem))] z-40 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-lg shadow-primary/40 ring-1 ring-white/15 transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/50 active:scale-95 lg:hidden"
           aria-label="Add"
         >
           <Plus className="size-7" strokeWidth={2.4} />
         </button>
       )}
 
-      {/* Bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl border-t border-border/60 bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+      {/* Bottom nav (mobile only) */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl border-t border-border/60 bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         <Tab icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => setView("upcoming")} />
         <Tab icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
         <Tab icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => setView("scores")} />
         <Tab icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => setView("discover")} />
         <Tab icon={<User className="size-5" />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
       </nav>
+      </div>
 
       {/* Dialogs */}
       <EventDialog
@@ -449,7 +464,7 @@ function UpcomingSection({
         <span className="tabular rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{section.items.length}</span>
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-1">
-        <div className="flex flex-col gap-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           {items.map((occ) => (
             <EventCard
               key={occ.key}
@@ -464,15 +479,17 @@ function UpcomingSection({
               onOpen={() => onOpen(occ)}
             />
           ))}
-          {hidden > 0 && (
+        </div>
+        {hidden > 0 && (
+          <div className="mt-2 flex justify-center">
             <button
               onClick={() => setShowAll(true)}
-              className="mt-1 self-center rounded-full border border-border px-4 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+              className="rounded-full border border-border px-4 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
             >
               Show {hidden} more
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -541,6 +558,53 @@ function Tab({ icon, label, active, onClick }: { icon: React.ReactNode; label: s
       >
         {icon}
       </span>
+      {label}
+    </button>
+  );
+}
+
+// Desktop-only left rail. Mirrors the mobile bottom nav 1:1 — same items, same active accent.
+function DesktopSidebar({ view, onSelect, onNew }: { view: View; onSelect: (v: View) => void; onNew: () => void }) {
+  return (
+    <aside className="sticky top-0 z-30 hidden h-dvh w-60 shrink-0 flex-col gap-1 border-r border-border/60 bg-background/50 px-3 py-4 backdrop-blur-xl lg:flex">
+      <div className="mb-3 flex items-center gap-2.5 px-2">
+        <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-sm shadow-primary/30">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="9" opacity=".35" />
+            <circle cx="12" cy="12" r="5" opacity=".6" />
+            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            <path d="M12 12 L20 6" />
+          </svg>
+        </span>
+        <span className="text-lg font-bold tracking-tight">Radarr</span>
+      </div>
+      <button
+        onClick={onNew}
+        className="mb-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-violet-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/30 transition hover:-translate-y-px hover:shadow-md hover:shadow-primary/40"
+      >
+        <Plus className="size-4" strokeWidth={2.4} /> New event
+      </button>
+      <nav className="flex flex-col gap-0.5">
+        <SideItem icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => onSelect("upcoming")} />
+        <SideItem icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => onSelect("calendar")} />
+        <SideItem icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => onSelect("scores")} />
+        <SideItem icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => onSelect("discover")} />
+        <SideItem icon={<User className="size-5" />} label="Profile" active={view === "profile"} onClick={() => onSelect("profile")} />
+      </nav>
+    </aside>
+  );
+}
+
+function SideItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+        active ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+      }`}
+    >
+      {active && <span className="absolute left-0 h-5 w-1 rounded-full bg-primary" style={{ boxShadow: "0 0 8px 0 var(--primary)" }} />}
+      {icon}
       {label}
     </button>
   );
