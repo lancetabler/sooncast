@@ -2,10 +2,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, createSession } from "@/lib/auth";
 import { ok, bad } from "@/lib/api";
+import { rateLimit, clientId } from "@/lib/ratelimit";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
 export async function POST(req: Request) {
+  const rl = rateLimit(`login:${clientId(req)}`, 10, 15 * 60 * 1000);
+  if (!rl.ok) return bad("Too many attempts. Try again in a few minutes.", 429);
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return bad("Enter your email and password");

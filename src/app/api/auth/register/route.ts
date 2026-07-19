@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
 import { SEED_CATEGORIES } from "@/lib/domain/categories";
 import { ok, bad } from "@/lib/api";
+import { rateLimit, clientId } from "@/lib/ratelimit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -12,6 +13,9 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const rl = rateLimit(`register:${clientId(req)}`, 5, 60 * 60 * 1000);
+  if (!rl.ok) return bad("Too many sign-up attempts. Try again later.", 429);
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Invalid input");

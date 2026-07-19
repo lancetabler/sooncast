@@ -62,4 +62,5 @@ export const api = {
   testPush: () => req<{ sent: number }>("/api/push/test", { method: "POST" }),
 
   checkout: () => req<{ url?: string }>("/api/billing/checkout", { method: "POST" }),
+  portal: () => req<{ url?: string }>("/api/billing/portal", { method: "POST" }),
 };

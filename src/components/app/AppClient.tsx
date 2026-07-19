@@ -18,6 +18,7 @@ import { CalendarView } from "./CalendarView";
 import { SettingsView } from "./SettingsView";
 import { Onboarding } from "./Onboarding";
 import { UpgradeDialog } from "./UpgradeDialog";
+import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
 
 type View = "upcoming" | "calendar" | "discover" | "settings";
@@ -227,6 +228,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         onEdit={editEvent}
       />
       <UpgradeDialog open={showUpgrade} onOpenChange={setShowUpgrade} />
+      <InstallPrompt />
       <Onboarding
         open={showOnboard}
         onOpenChange={setShowOnboard}

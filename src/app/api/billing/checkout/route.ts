@@ -21,9 +21,11 @@ export async function POST() {
       mode: "subscription",
       line_items: [{ price, quantity: 1 }],
       customer_email: user.email,
+      client_reference_id: user.id,
       success_url: `${appUrl}/?upgraded=1`,
       cancel_url: `${appUrl}/`,
       metadata: { userId: user.id },
+      subscription_data: { metadata: { userId: user.id } },
     });
     return ok({ url: session.url });
   } catch (e) {

@@ -135,6 +135,22 @@ export function SettingsView({
             <Sparkles data-icon="inline-start" className="text-primary" /> Upgrade to Pro
           </Button>
         )}
+        {user.plan === "PRO" && !isAdmin && (
+          <Button
+            variant="ghost"
+            className="justify-start text-muted-foreground"
+            onClick={async () => {
+              try {
+                const res = await api.portal();
+                if (res.url) window.location.href = res.url;
+              } catch (err) {
+                toast.error(err instanceof ApiError ? err.message : "Couldn't open billing");
+              }
+            }}
+          >
+            <Sparkles data-icon="inline-start" /> Manage subscription
+          </Button>
+        )}
         <Button variant="ghost" onClick={onLogout} className="justify-start text-muted-foreground">
           <LogOut data-icon="inline-start" /> Sign out
         </Button>
