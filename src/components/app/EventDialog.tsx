@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as chrono from "chrono-node";
 import { toast } from "sonner";
-import { Bell, Trash2 } from "lucide-react";
+import { Bell, Trash2, Wand2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -49,6 +50,7 @@ export function EventDialog({
       date: toDateInput(base),
       time: toTimeInput(base),
       allDay: event?.allDay ?? false,
+      countUp: event?.countUp ?? false,
       freq: event?.freq ?? "none",
       reminders: event?.reminders ?? defaultReminders,
       location: event?.location ?? "",
@@ -59,7 +61,26 @@ export function EventDialog({
 
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [quick, setQuick] = useState("");
   useEffect(() => setF(initial), [initial]);
+
+  function applyQuick() {
+    const text = quick.trim();
+    if (!text) return;
+    const results = chrono.parse(text, new Date(), { forwardDate: true });
+    if (!results.length) {
+      setF((s) => ({ ...s, title: text }));
+      setQuick("");
+      return;
+    }
+    const r = results[0];
+    const dt = r.start.date();
+    const hasTime = r.start.isCertain("hour");
+    const title = (text.slice(0, r.index) + text.slice(r.index + r.text.length)).replace(/\s+/g, " ").trim() || text;
+    setF((s) => ({ ...s, title, date: toDateInput(dt), time: toTimeInput(dt), allDay: !hasTime }));
+    setQuick("");
+    toast.success("Filled from your text");
+  }
 
   function toggleReminder(min: number) {
     setF((s) => {
@@ -78,6 +99,7 @@ export function EventDialog({
       categoryId: f.categoryId,
       start,
       allDay: f.allDay,
+      countUp: f.countUp,
       freq: f.freq,
       reminders: f.reminders,
       location: f.location.trim() || null,
@@ -118,6 +140,21 @@ export function EventDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          {!isEdit && (
+            <div className="flex gap-2 rounded-xl border border-dashed border-border bg-secondary/40 p-2">
+              <Input
+                value={quick}
+                onChange={(e) => setQuick(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyQuick(); } }}
+                placeholder="Type it: “Bruins friday 7pm”"
+                className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={applyQuick} disabled={!quick.trim()}>
+                <Wand2 data-icon="inline-start" /> Fill
+              </Button>
+            </div>
+          )}
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="ev-title">What is it?</Label>
             <Input id="ev-title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="e.g. British Grand Prix" autoFocus />
@@ -164,6 +201,14 @@ export function EventDialog({
           <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
             <span className="text-sm">All-day</span>
             <Switch checked={f.allDay} onCheckedChange={(v) => setF({ ...f, allDay: v })} />
+          </label>
+
+          <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <span className="flex flex-col">
+              <span className="text-sm">Count up</span>
+              <span className="text-xs text-muted-foreground">Show time since (anniversaries, milestones)</span>
+            </span>
+            <Switch checked={f.countUp} onCheckedChange={(v) => setF({ ...f, countUp: v })} />
           </label>
 
           <div className="flex flex-col gap-2">

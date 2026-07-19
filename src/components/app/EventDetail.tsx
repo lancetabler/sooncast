@@ -36,7 +36,13 @@ export function EventDetail({
   const end = new Date(start.getTime() + dur * 60000);
   const now = Date.now();
   const diff = start.getTime() - now;
-  const cd = diff > 0 ? humanCountdown(diff) : now < end.getTime() ? "LIVE NOW" : "Passed";
+  const cd = event.countUp
+    ? humanCountdown(now - start.getTime())
+    : diff > 0
+    ? humanCountdown(diff)
+    : now < end.getTime()
+    ? "LIVE NOW"
+    : "Passed";
   const color = category?.color ?? "var(--primary)";
 
   const rows: Array<[string, React.ReactNode]> = [
@@ -76,7 +82,9 @@ export function EventDetail({
 
           <div className="rounded-xl border border-border bg-card p-4 text-center">
             <div className="tabular text-3xl font-bold tracking-tight">{cd}</div>
-            {diff > 0 && <div className="text-xs uppercase tracking-wide text-muted-foreground">until start</div>}
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {event.countUp ? "since" : diff > 0 ? "until start" : ""}
+            </div>
           </div>
 
           {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}

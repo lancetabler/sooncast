@@ -15,6 +15,7 @@ const eventSchema = z.object({
   url: z.string().max(500).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),
   reminders: z.array(z.number().int().min(0).max(525600)).optional(),
+  countUp: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       url: d.url ?? null,
       note: d.note ?? null,
       reminders: JSON.stringify(reminders),
+      countUp: d.countUp ?? false,
     },
   });
   return ok(serializeEvent(created), 201);

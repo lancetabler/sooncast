@@ -9,6 +9,7 @@ export interface ClientFollow {
   label: string;
   categorySlug: string | null;
   lastSync: string | null;
+  muted: boolean;
   count: number;
 }
 export interface ClientUser {
@@ -59,6 +60,7 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
       label: f.label,
       categorySlug: f.categorySlug,
       lastSync: f.lastSync ? f.lastSync.toISOString() : null,
+      muted: f.muted,
       count: events.filter((e) => e.followId === f.id).length,
     })),
   };

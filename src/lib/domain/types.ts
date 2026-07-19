@@ -10,6 +10,7 @@ export interface TrackEvent {
   freq: Freq;
   until?: string | null;
   reminders: number[]; // minutes before start
+  countUp?: boolean;
   location?: string | null;
   url?: string | null;
   note?: string | null;

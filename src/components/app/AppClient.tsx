@@ -121,6 +121,21 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     return null;
   }, [upcoming, now]);
 
+  // occurrences whose time overlaps another (timed events only)
+  const clashKeys = useMemo(() => {
+    const all = [...upcoming.values()].flat().filter((o) => !o.event.allDay && !o.event.countUp);
+    const set = new Set<string>();
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        if (all[i].start < all[j].end && all[j].start < all[i].end) {
+          set.add(all[i].key);
+          set.add(all[j].key);
+        }
+      }
+    }
+    return set;
+  }, [upcoming]);
+
   function openEvent(occ: Occurrence) {
     const ev = state.events.find((e) => e.id === occ.event.id);
     if (ev) setDetail(ev);
@@ -210,6 +225,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
                           now={now}
                           reminders={occ.event.reminders.length}
                           live={liveMap[occ.event.id]}
+                          clash={clashKeys.has(occ.key)}
                           onOpen={() => openEvent(occ)}
                         />
                       ))}

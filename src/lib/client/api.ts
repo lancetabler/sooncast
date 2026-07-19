@@ -47,6 +47,7 @@ export const api = {
       body: JSON.stringify(b),
     }),
   syncFollow: (id: string) => req<{ result: unknown }>(`/api/follows/${id}/sync`, { method: "POST" }),
+  updateFollow: (id: string, b: { muted?: boolean }) => req(`/api/follows/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
   deleteFollow: (id: string) => req(`/api/follows/${id}`, { method: "DELETE" }),
 
   saveSettings: (b: {

@@ -4,6 +4,7 @@ import { expandAll, reminderFires } from "@/lib/domain/recurrence";
 import { reminderLabel } from "@/lib/domain/format";
 import { parseIntArray } from "@/lib/serialize";
 import { sendPush, pushReady } from "@/lib/push";
+import { getLiveStatuses, scoreString } from "@/lib/live";
 import type { TrackEvent } from "@/lib/domain/types";
 
 // How far back to catch fires that just came due. Set CRON_LOOKBACK_MIN to your
@@ -51,11 +52,19 @@ async function run(req: Request) {
 
   const users = await prisma.user.findMany({
     where: { subscriptions: { some: {} } },
-    include: { subscriptions: true, events: true },
+    include: { subscriptions: true, events: true, follows: true },
   });
 
   let sent = 0;
   let checkedUsers = 0;
+
+  async function pushAll(user: (typeof users)[number], title: string, body: string, tag: string, url?: string) {
+    for (const s of user.subscriptions) {
+      const status = await sendPush(s, { title, body, tag, url });
+      if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
+      else if (status >= 200 && status < 300) sent++;
+    }
+  }
 
   for (const user of users) {
     checkedUsers++;
@@ -64,36 +73,64 @@ async function run(req: Request) {
       if (mod != null && inQuietHours(mod, user.quietStart, user.quietEnd)) continue;
     }
 
-    const track: TrackEvent[] = user.events.map((e) => ({
-      id: e.id, title: e.title, categoryId: e.categoryId, start: e.start.toISOString(),
-      allDay: e.allDay, durationMin: e.durationMin, freq: e.freq as TrackEvent["freq"],
-      until: e.until ? e.until.toISOString() : null, reminders: parseIntArray(e.reminders),
-      location: e.location, url: e.url, note: e.note, imageUrl: e.imageUrl,
-    }));
+    const mutedFollowIds = new Set(user.follows.filter((f) => f.muted).map((f) => f.id));
+    const followRefById = new Map(user.follows.map((f) => [f.id, f.ref]));
+
+    /* ---- reminders ---- */
+    const track: TrackEvent[] = user.events
+      .filter((e) => !(e.followId && mutedFollowIds.has(e.followId)))
+      .map((e) => ({
+        id: e.id, title: e.title, categoryId: e.categoryId, start: e.start.toISOString(),
+        allDay: e.allDay, durationMin: e.durationMin, freq: e.freq as TrackEvent["freq"],
+        until: e.until ? e.until.toISOString() : null, reminders: parseIntArray(e.reminders),
+        location: e.location, url: e.url, note: e.note, imageUrl: e.imageUrl,
+      }));
 
     const occ = expandAll(track, from, to);
     const due = reminderFires(occ).filter((f) => {
       const t = f.fireAt.getTime();
       return t <= now && t > now - LOOKBACK_MS;
     });
-    if (!due.length) continue;
 
     for (const fire of due) {
       const existing = await prisma.reminderLog.findUnique({ where: { key: fire.key } });
       if (existing) continue;
       await prisma.reminderLog.create({ data: { userId: user.id, key: fire.key } });
-
       const body =
         fire.minutes === 0
           ? "Starting now" + (fire.location ? ` · ${fire.location}` : "")
           : `${reminderLabel(fire.minutes).replace(" before", "")} — starts soon` + (fire.location ? ` · ${fire.location}` : "");
+      await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined);
+    }
 
-      for (const s of user.subscriptions) {
-        const status = await sendPush(s, { title: fire.title, body, tag: fire.key, url: fire.url ?? undefined });
-        if (status === 404 || status === 410) {
-          await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
-        } else if (status >= 200 && status < 300) {
-          sent++;
+    /* ---- live score-change & final alerts (ESPN team sports) ---- */
+    const liveCandidates = user.events.filter(
+      (e) =>
+        e.sourceProvider === "espn" &&
+        e.followId && !mutedFollowIds.has(e.followId) && followRefById.get(e.followId)?.includes("/teams/") &&
+        e.liveState !== "post" &&
+        e.start.getTime() <= now + 15 * 60_000 &&
+        e.start.getTime() >= now - 5 * 3600_000
+    );
+    if (liveCandidates.length) {
+      const statuses = await getLiveStatuses(
+        liveCandidates.map((e) => ({ eventId: e.id, sourceExtId: e.sourceExtId, followRef: followRefById.get(e.followId!) ?? null, start: e.start }))
+      );
+      for (const e of liveCandidates) {
+        const st = statuses[e.id];
+        if (!st) continue;
+        const newScore = scoreString(st);
+        if (st.state === "in") {
+          // silently record the first score we see, then alert on subsequent changes
+          if (newScore && e.liveScore && newScore !== e.liveScore) {
+            await pushAll(user, `🚨 ${e.title}`, `${newScore}${st.detail ? " · " + st.detail : ""}`, `score-${e.id}-${newScore}`, e.url ?? undefined);
+          }
+          if (newScore !== e.liveScore || e.liveState !== "in") {
+            await prisma.event.update({ where: { id: e.id }, data: { liveScore: newScore, liveState: "in" } });
+          }
+        } else if (st.state === "post" && e.liveState !== "post") {
+          await pushAll(user, `Final · ${e.title}`, newScore ?? "Final", `final-${e.id}`, e.url ?? undefined);
+          await prisma.event.update({ where: { id: e.id }, data: { liveScore: newScore, liveState: "post" } });
         }
       }
     }

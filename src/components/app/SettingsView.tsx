@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { BellRing, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save } from "lucide-react";
+import { BellRing, BellOff, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/client/api";
 import { enablePush, isStandalone, pushSupported } from "@/lib/client/push";
@@ -80,6 +80,14 @@ export function SettingsView({
     if (!confirm(`Remove ${label} and its imported events?`)) return;
     await api.deleteFollow(id).catch(() => {});
     onChanged();
+  }
+  async function toggleMute(id: string, muted: boolean) {
+    try {
+      await api.updateFollow(id, { muted: !muted });
+      onChanged();
+    } catch {
+      toast.error("Couldn't update");
+    }
   }
 
   async function addCategory() {
@@ -234,10 +242,13 @@ export function SettingsView({
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{f.label}</div>
               <div className="text-xs text-muted-foreground">
-                {f.count} events{f.lastSync ? ` · synced ${new Date(f.lastSync).toLocaleDateString()}` : ""}
+                {f.count} events{f.muted ? " · muted" : ""}{f.lastSync ? ` · synced ${new Date(f.lastSync).toLocaleDateString()}` : ""}
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
+              <Button size="icon" variant="ghost" onClick={() => toggleMute(f.id, f.muted)} aria-label={f.muted ? "Unmute" : "Mute"} className={f.muted ? "text-amber-400" : ""}>
+                {f.muted ? <BellOff className="size-4" /> : <BellRing className="size-4" />}
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => syncFollow(f.id, f.label)} aria-label="Sync">
                 <RefreshCw className="size-4" />
               </Button>

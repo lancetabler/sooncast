@@ -19,6 +19,7 @@ export function EventCard({
   now,
   reminders,
   live,
+  clash,
   onOpen,
 }: {
   occ: Occurrence;
@@ -26,6 +27,7 @@ export function EventCard({
   now: number;
   reminders: number;
   live?: LiveStatus;
+  clash?: boolean;
   onOpen: () => void;
 }) {
   const color = category?.color ?? "var(--primary)";
@@ -48,6 +50,12 @@ export function EventCard({
     cdClass = "text-amber-400";
   }
 
+  // Count-up events show time since their date instead of a countdown.
+  if (occ.event.countUp) {
+    cd = humanCountdown(now - startMs);
+    cdClass = "text-muted-foreground";
+  }
+
   // Live scores override the countdown when the game is on or done today.
   if (live?.state === "in") {
     cd = scoreLine(live) ?? "LIVE";
@@ -61,7 +69,7 @@ export function EventCard({
   return (
     <button
       onClick={onOpen}
-      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""}`}
+      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""}`}
     >
       <span className="w-1 shrink-0 rounded-full" style={{ background: color }} />
       <div className="flex w-14 shrink-0 flex-col items-center justify-center">
@@ -84,6 +92,7 @@ export function EventCard({
               <MapPin className="size-3" /> {occ.event.location}
             </span>
           )}
+          {clash && <span className="font-medium text-amber-400">⚠ overlaps</span>}
         </span>
       </div>
 

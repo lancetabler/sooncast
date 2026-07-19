@@ -76,6 +76,9 @@ model Event {
   note        String?
   reminders   String   @default("[]") // JSON int[] minutes-before
   imageUrl    String?
+  countUp     Boolean  @default(false) // "time since" instead of countdown
+  liveState   String? // espn: pre | in | post (last seen)
+  liveScore   String? // last seen "AWA a-b HOM" for score-change alerts
 
   // provenance for auto-imported events
   followId       String?
@@ -101,6 +104,7 @@ model Follow {
   categorySlug String?
   params     String   @default("{}") // JSON
   lastSync   DateTime?
+  muted      Boolean  @default(false) // suppress notifications from this source
   createdAt  DateTime @default(now())
 
   events Event[]

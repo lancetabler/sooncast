@@ -23,6 +23,7 @@ export interface ClientEvent {
   note: string | null;
   imageUrl: string | null;
   reminders: number[];
+  countUp: boolean;
   followId: string | null;
   sourceProvider: string | null;
   sourceLabel: string | null;
@@ -43,6 +44,7 @@ export function serializeEvent(e: DbEvent): ClientEvent {
     note: e.note,
     imageUrl: e.imageUrl,
     reminders: parseIntArray(e.reminders),
+    countUp: e.countUp,
     followId: e.followId,
     sourceProvider: e.sourceProvider,
     sourceLabel: e.sourceLabel,
