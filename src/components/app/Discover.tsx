@@ -10,6 +10,37 @@ import type { CatalogItem, ClientCategory, ClientFollow } from "@/lib/client/typ
 
 const followKey = (provider: string, ref: string) => `${provider}::${ref}`;
 
+// Module-scope so it keeps a stable identity across renders (otherwise inputs lose focus).
+function FollowPill({
+  item,
+  followed,
+  adding,
+  onFollow,
+}: {
+  item: CatalogItem;
+  followed: boolean;
+  adding: boolean;
+  onFollow: (item: CatalogItem) => void;
+}) {
+  if (followed) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+        <Check className="size-3.5" /> Following
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={() => onFollow(item)}
+      disabled={adding}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+    >
+      {adding ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+      Follow
+    </button>
+  );
+}
+
 export function Discover({
   categories,
   follows,
@@ -65,9 +96,11 @@ export function Discover({
     try {
       const res = await api.addFollow({ provider: item.provider, ref: item.ref, label: item.label, categorySlug: item.categorySlug });
       const { added, updated } = res.result;
-      toast.success(`Following ${item.label}`, {
-        description: `${added} added${updated ? `, ${updated} updated` : ""}`,
-      });
+      if (added === 0 && updated === 0) {
+        toast.success(`Following ${item.label}`, { description: "No upcoming events yet — we'll import them once the schedule is posted." });
+      } else {
+        toast.success(`Following ${item.label}`, { description: `${added} added${updated ? `, ${updated} updated` : ""}` });
+      }
       onChanged();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) toast("Already following this");
@@ -119,93 +152,6 @@ export function Discover({
     }
   }
 
-  function FollowButton({ item }: { item: CatalogItem }) {
-    const key = followKey(item.provider, item.ref);
-    const isFollowing = followedKeys.has(key);
-    if (isFollowing) {
-      return (
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-          <Check className="size-3.5" /> Following
-        </span>
-      );
-    }
-    return (
-      <button
-        onClick={() => follow(item)}
-        disabled={addingKey === key}
-        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
-      >
-        {addingKey === key ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-        Follow
-      </button>
-    );
-  }
-
-  function SourceRow({ item }: { item: CatalogItem }) {
-    const canBrowse = !!item.browse;
-    const isOpen = openLeague === item.ref;
-    const teams = teamCache[item.ref] ?? [];
-    const filtered = teamFilter.trim()
-      ? teams.filter((t) => t.label.toLowerCase().includes(teamFilter.trim().toLowerCase()))
-      : teams;
-    return (
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-        <div className="flex items-center gap-3 p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {item.imageUrl ? (
-            <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
-          ) : (
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{item.label}</div>
-            {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
-          </div>
-          {canBrowse && (
-            <button
-              onClick={() => toggleTeams(item)}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Users className="size-3.5" /> Teams
-              <ChevronDown className={`size-3 transition ${isOpen ? "rotate-180" : ""}`} />
-            </button>
-          )}
-          <FollowButton item={item} />
-        </div>
-
-        {canBrowse && isOpen && (
-          <div className="border-t border-border/60 bg-secondary/30 p-3">
-            {teamLoading === item.ref ? (
-              <div className="flex justify-center py-4 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-              </div>
-            ) : teams.length === 0 ? (
-              <p className="py-2 text-center text-xs text-muted-foreground">Couldn&apos;t load teams — try Follow for the full league.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Input value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} placeholder="Filter teams…" className="h-8 text-sm" />
-                <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto">
-                  {filtered.map((t) => (
-                    <div key={t.ref} className="flex items-center gap-2 rounded-lg bg-card px-2 py-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      {t.imageUrl ? (
-                        <img src={t.imageUrl} alt="" className="size-6 shrink-0 object-contain" />
-                      ) : (
-                        <span className="size-6 shrink-0" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-sm">{t.label}</span>
-                      <FollowButton item={t} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <div className="relative">
@@ -224,9 +170,70 @@ export function Discover({
       )}
 
       <div className="flex flex-col gap-2">
-        {items.map((item) => (
-          <SourceRow key={followKey(item.provider, item.ref)} item={item} />
-        ))}
+        {items.map((item) => {
+          const canBrowse = !!item.browse;
+          const isOpen = openLeague === item.ref;
+          const teams = teamCache[item.ref] ?? [];
+          const filtered = teamFilter.trim()
+            ? teams.filter((t) => t.label.toLowerCase().includes(teamFilter.trim().toLowerCase()))
+            : teams;
+          return (
+            <div key={followKey(item.provider, item.ref)} className="overflow-hidden rounded-xl border border-border/70 bg-card">
+              <div className="flex items-center gap-3 p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
+                ) : (
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{item.label}</div>
+                  {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
+                </div>
+                {canBrowse && (
+                  <button
+                    onClick={() => toggleTeams(item)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    <Users className="size-3.5" /> Teams
+                    <ChevronDown className={`size-3 transition ${isOpen ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+                <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} />
+              </div>
+
+              {canBrowse && isOpen && (
+                <div className="border-t border-border/60 bg-secondary/30 p-3">
+                  {teamLoading === item.ref ? (
+                    <div className="flex justify-center py-4 text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                    </div>
+                  ) : teams.length === 0 ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">Couldn&apos;t load teams — try Follow for the full league.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Input value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} placeholder="Filter teams…" className="h-8 text-sm" />
+                      <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto overscroll-contain">
+                        {filtered.map((t) => (
+                          <div key={t.ref} className="flex items-center gap-2 rounded-lg bg-card px-2 py-1.5">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            {t.imageUrl ? (
+                              <img src={t.imageUrl} alt="" className="size-6 shrink-0 object-contain" />
+                            ) : (
+                              <span className="size-6 shrink-0" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-sm">{t.label}</span>
+                            <FollowPill item={t} followed={followedKeys.has(followKey(t.provider, t.ref))} adding={addingKey === followKey(t.provider, t.ref)} onFollow={follow} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Add any calendar feed — covers leagues we don't list (e.g. a local league) */}

@@ -33,13 +33,14 @@ function normalizeEvent(e: any, leagueName: string): NormalizedEvent | null {
 }
 
 async function fetchTeamSchedule(ref: string): Promise<NormalizedEvent[]> {
-  // Soccer team schedules don't use the US-sports seasontype param.
-  const isSoccer = ref.startsWith("soccer/");
-  const url = isSoccer ? `${BASE}/${ref}/schedule` : `${BASE}/${ref}/schedule?seasontype=2`;
-  const data = await fetchJSON<any>(url);
+  // Whole current schedule (all season types); we filter to upcoming below.
+  const data = await fetchJSON<any>(`${BASE}/${ref}/schedule`);
   const leagueName = data?.team?.displayName || "";
   const events = data?.events || [];
-  return events.map((e: any) => normalizeEvent(e, leagueName)).filter(Boolean) as NormalizedEvent[];
+  const cutoff = Date.now() - 2 * 86400_000; // keep from ~2 days ago onward
+  return (events.map((e: any) => normalizeEvent(e, leagueName)).filter(Boolean) as NormalizedEvent[]).filter(
+    (n) => new Date(n.start).getTime() >= cutoff
+  );
 }
 
 // Every major league ESPN exposes with both /teams and /scoreboard endpoints.

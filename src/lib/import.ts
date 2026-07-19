@@ -56,8 +56,10 @@ export async function runFollowImport(
           note: n.note ?? null,
           url: n.url ?? null,
           imageUrl: n.imageUrl ?? null,
-          sourceLabel: follow.label,
-          followId: follow.id,
+          sourceLabel: existing.followId ? existing.sourceLabel : follow.label,
+          // keep the original owner so unfollowing an overlapping source (e.g. a team you also
+          // follow via its league) doesn't cascade-delete games another follow still wants
+          followId: existing.followId ?? follow.id,
           categoryId: existing.categoryId ?? categoryId,
         },
       });
