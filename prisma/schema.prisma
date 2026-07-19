@@ -1,0 +1,119 @@
+// Radar data model. SQLite for local dev; swap `provider`/DATABASE_URL for Postgres in prod.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Neon -pooler) for runtime
+  directUrl = env("DIRECT_URL")   // direct connection for migrations / db push
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  role         String   @default("USER") // USER | ADMIN (first signup is ADMIN)
+  plan         String   @default("FREE") // FREE | PRO
+  timezone     String   @default("UTC")
+  feedToken    String   @unique @default(cuid()) // powers the private webcal feed
+  quietStart   Int? // minutes from midnight, optional quiet-hours window
+  quietEnd     Int?
+  defaultReminders String @default("[0,60,1440]") // JSON int[] minutes-before
+  createdAt    DateTime @default(now())
+
+  categories    Category[]
+  events        Event[]
+  follows       Follow[]
+  subscriptions PushSubscription[]
+  reminderLogs  ReminderLog[]
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  emoji     String  @default("📌")
+  color     String  @default("#5b8cff")
+  slug      String? // stable key for seeded categories (f1, nhl, ...)
+  createdAt DateTime @default(now())
+
+  events Event[]
+
+  @@index([userId])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title       String
+  start       DateTime
+  allDay      Boolean  @default(false)
+  durationMin Int      @default(120)
+  freq        String   @default("none") // none|daily|weekly|biweekly|monthly
+  until       DateTime?
+  location    String?
+  url         String?
+  note        String?
+  reminders   String   @default("[]") // JSON int[] minutes-before
+  imageUrl    String?
+
+  // provenance for auto-imported events
+  followId       String?
+  follow         Follow? @relation(fields: [followId], references: [id], onDelete: Cascade)
+  sourceProvider String?
+  sourceExtId    String? // stable external id for upsert
+  sourceLabel    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, start])
+  @@index([userId, sourceExtId])
+}
+
+model Follow {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String // espn | jolpica | thesportsdb | ics | tmdb
+  ref        String // provider-specific ref, e.g. "racing/f1" or team id or feed url
+  label      String
+  categorySlug String?
+  params     String   @default("{}") // JSON
+  lastSync   DateTime?
+  createdAt  DateTime @default(now())
+
+  events Event[]
+
+  @@unique([userId, provider, ref])
+  @@index([userId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Dedupe log so the cron never sends the same reminder twice.
+model ReminderLog {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key    String   @unique // eventId@occurrenceISO#minutes
+  sentAt DateTime @default(now())
+
+  @@index([userId])
+}

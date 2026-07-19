@@ -1,0 +1,78 @@
+"use client";
+
+import { Bell, MapPin, Repeat } from "lucide-react";
+import type { Occurrence } from "@/lib/domain/types";
+import type { ClientCategory } from "@/lib/client/types";
+import { humanCountdown, fmtTime } from "@/lib/domain/format";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export function EventCard({
+  occ,
+  category,
+  now,
+  reminders,
+  onOpen,
+}: {
+  occ: Occurrence;
+  category?: ClientCategory;
+  now: number;
+  reminders: number;
+  onOpen: () => void;
+}) {
+  const color = category?.color ?? "var(--primary)";
+  const start = occ.start;
+  const startMs = start.getTime();
+  const endMs = occ.end.getTime();
+  const isLive = now >= startMs && now < endMs;
+  const isPast = now >= endMs;
+  const diff = startMs - now;
+  const recurring = occ.event.freq && occ.event.freq !== "none";
+
+  let cd = humanCountdown(diff);
+  let cdClass = "text-muted-foreground";
+  if (isLive) {
+    cd = "LIVE";
+    cdClass = "text-red-400";
+  } else if (isPast) {
+    cd = "ended";
+  } else if (diff < 3600_000) {
+    cdClass = "text-amber-400";
+  }
+
+  return (
+    <button
+      onClick={onOpen}
+      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""}`}
+    >
+      <span className="w-1 shrink-0 rounded-full" style={{ background: color }} />
+      <div className="flex w-14 shrink-0 flex-col items-center justify-center">
+        <span className="text-xl font-bold leading-none">{start.getDate()}</span>
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{MONTHS[start.getMonth()]}</span>
+        <span className="mt-0.5 text-xs text-muted-foreground/80">{DOW[start.getDay()]}</span>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+        <span className="flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color }}>
+          {category?.emoji} {category?.name ?? "Event"}
+          {recurring && <Repeat className="size-3 opacity-70" />}
+          {reminders > 0 && <Bell className="size-3 opacity-70" />}
+        </span>
+        <span className="truncate text-[15px] font-semibold tracking-tight">{occ.event.title}</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          <span>{occ.event.allDay ? "All day" : fmtTime(start)}</span>
+          {occ.event.location && (
+            <span className="inline-flex items-center gap-1 truncate">
+              <MapPin className="size-3" /> {occ.event.location}
+            </span>
+          )}
+        </span>
+      </div>
+
+      <span className={`tabular self-center whitespace-nowrap rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold ${cdClass}`}>
+        {cd}
+      </span>
+    </button>
+  );
+}
