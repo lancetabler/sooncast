@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { BellRing, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download } from "lucide-react";
+import { BellRing, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/client/api";
 import { enablePush, isStandalone, pushSupported } from "@/lib/client/push";
@@ -36,6 +37,7 @@ export function SettingsView({
   const [defaults, setDefaults] = useState<number[]>(user.defaultReminders);
   const [pushBusy, setPushBusy] = useState(false);
   const webcal = user.feedUrl.replace(/^https?:\/\//, "webcal://");
+  const { theme, setTheme } = useTheme();
 
   async function turnOnPush() {
     setPushBusy(true);
@@ -111,6 +113,41 @@ export function SettingsView({
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast.success("Opening your calendar…");
+  }
+
+  async function downloadBackup() {
+    try {
+      const data = await api.backup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `radarr-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success("Backup downloaded");
+    } catch {
+      toast.error("Backup failed");
+    }
+  }
+
+  function restoreBackup() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        const res = await api.restore(data);
+        toast.success(`Restored ${res.addedEvents} events, ${res.addedFollows} sources`);
+        onChanged();
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : "Couldn't restore that file");
+      }
+    };
+    input.click();
   }
 
   return (
@@ -231,9 +268,29 @@ export function SettingsView({
         </Button>
       </Section>
 
+      <Section title="Appearance">
+        <div className="grid grid-cols-3 gap-2">
+          {(["light", "dark", "system"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTheme(t)}
+              className={`rounded-lg border py-2 text-sm capitalize transition ${theme === t ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground"}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Data">
         <Button variant="secondary" onClick={exportAll} className="justify-start">
           <Download data-icon="inline-start" /> Export all to Calendar (.ics)
+        </Button>
+        <Button variant="secondary" onClick={downloadBackup} className="justify-start">
+          <Save data-icon="inline-start" /> Download full backup (.json)
+        </Button>
+        <Button variant="secondary" onClick={restoreBackup} className="justify-start">
+          <Upload data-icon="inline-start" /> Restore from backup
         </Button>
       </Section>
 

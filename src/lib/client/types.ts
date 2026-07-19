@@ -10,3 +10,10 @@ export interface CatalogItem {
   categorySlug: string;
   imageUrl?: string;
 }
+
+export interface LiveStatus {
+  state: "pre" | "in" | "post";
+  detail: string;
+  home?: { abbr: string; score: string };
+  away?: { abbr: string; score: string };
+}

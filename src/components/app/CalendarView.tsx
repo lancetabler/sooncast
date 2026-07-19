@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Occurrence } from "@/lib/domain/types";
-import type { ClientCategory, ClientEvent } from "@/lib/client/types";
+import type { ClientCategory, ClientEvent, LiveStatus } from "@/lib/client/types";
 import { occurrences as occFn } from "@/lib/client/occurrences";
 import { EventCard } from "./EventCard";
 
@@ -11,12 +11,13 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function CalendarView({
-  events, categories, filter, now, onOpen,
+  events, categories, filter, now, live, onOpen,
 }: {
   events: ClientEvent[];
   categories: ClientCategory[];
   filter: string;
   now: number;
+  live?: Record<string, LiveStatus>;
   onOpen: (occ: Occurrence) => void;
 }) {
   const today = new Date();
@@ -115,6 +116,7 @@ export function CalendarView({
             category={catById.get(occ.event.categoryId ?? "")}
             now={now}
             reminders={occ.event.reminders.length}
+            live={live?.[occ.event.id]}
             onOpen={() => onOpen(occ)}
           />
         ))}

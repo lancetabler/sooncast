@@ -24,9 +24,17 @@ export async function fetchFromSource(provider: string, ref: string): Promise<No
 }
 
 // Featured, one-tap follows shown in Discover before the user searches.
+// Public .ics calendar feeds (community-maintained) for series without a clean API.
+const ICS_FEEDS: CatalogItem[] = [
+  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/njulhksvo83qeoruc3nhend9js%40group.calendar.google.com/public/basic.ics", label: "IMSA WeatherTech", sublabel: "SportsCar Championship — full season", categorySlug: "imsa" },
+  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/61jccgg4rshh1temqk0dj4lens%40group.calendar.google.com/public/basic.ics", label: "FIA WEC", sublabel: "World Endurance Championship + Le Mans", categorySlug: "wec" },
+  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/hlskhf7l8ce7btind39bb9kf1o%40group.calendar.google.com/public/basic.ics", label: "IndyCar", sublabel: "Full season", categorySlug: "racing" },
+];
+
 export function featuredCatalog(): CatalogItem[] {
   return [
     { provider: "jolpica", ref: "current", label: "Formula 1", sublabel: "Full season — races, quali & sprints", categorySlug: "f1" },
+    ...ICS_FEEDS,
     ...ESPN_CATALOG.filter((c) => c.ref !== "racing/f1"),
     { provider: "tmdb", ref: "upcoming", label: "Movies — upcoming releases", sublabel: "New theatrical releases", categorySlug: "screen" },
   ];

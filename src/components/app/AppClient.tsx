@@ -7,9 +7,9 @@ import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
 import { occurrences } from "@/lib/client/occurrences";
-import { groupFor, type GroupLabel } from "@/lib/domain/format";
+import { groupFor, sameDay, preciseCountdown, fmtDay, fmtTime, type GroupLabel } from "@/lib/domain/format";
 import type { Occurrence } from "@/lib/domain/types";
-import type { ClientEvent, StateBundle } from "@/lib/client/types";
+import type { ClientEvent, StateBundle, LiveStatus } from "@/lib/client/types";
 import { EventCard } from "./EventCard";
 import { EventDialog } from "./EventDialog";
 import { EventDetail } from "./EventDetail";
@@ -36,6 +36,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [detail, setDetail] = useState<ClientEvent | null>(null);
   const [showOnboard, setShowOnboard] = useState(false);
+  const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
 
   const catById = useMemo(() => new Map(state.categories.map((c) => [c.id, c])), [state.categories]);
 
@@ -67,6 +68,33 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     setBadge(soon);
   }, [state.events, now]);
 
+  // poll live scores/status for ESPN games happening today
+  useEffect(() => {
+    const today = new Date();
+    const ids = state.events
+      .filter((e) => e.sourceProvider === "espn" && sameDay(new Date(e.start), today))
+      .map((e) => e.id);
+    if (!ids.length) {
+      setLiveMap({});
+      return;
+    }
+    let active = true;
+    const poll = async () => {
+      try {
+        const m = await api.live(ids);
+        if (active) setLiveMap(m);
+      } catch {
+        /* ignore */
+      }
+    };
+    poll();
+    const t = setInterval(poll, 30_000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, [state.events]);
+
   const upcoming = useMemo(() => {
     const from = new Date(now - 3 * 3600_000);
     const to = new Date(now + 400 * 86400_000);
@@ -83,6 +111,15 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     const ids = new Set(state.events.map((e) => e.categoryId));
     return state.categories.filter((c) => ids.has(c.id));
   }, [state.events, state.categories]);
+
+  const nextUp = useMemo(() => {
+    for (const g of ["Today", "Tomorrow", "This week", "Later"] as GroupLabel[]) {
+      const items = upcoming.get(g);
+      const fut = items?.find((o) => o.start.getTime() > now);
+      if (fut) return fut;
+    }
+    return null;
+  }, [upcoming, now]);
 
   function openEvent(occ: Occurrence) {
     const ev = state.events.find((e) => e.id === occ.event.id);
@@ -153,6 +190,9 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
             />
           ) : (
             <div className="flex flex-col gap-1">
+              {nextUp && !search && (
+                <UpNextHero occ={nextUp} category={catById.get(nextUp.event.categoryId ?? "")} now={now} onOpen={() => openEvent(nextUp)} />
+              )}
               {GROUP_ORDER.map((g) => {
                 const items = upcoming.get(g);
                 if (!items?.length) return null;
@@ -169,6 +209,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
                           category={catById.get(occ.event.categoryId ?? "")}
                           now={now}
                           reminders={occ.event.reminders.length}
+                          live={liveMap[occ.event.id]}
                           onOpen={() => openEvent(occ)}
                         />
                       ))}
@@ -181,9 +222,9 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         )}
 
         {view === "calendar" && (
-          <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} onOpen={openEvent} />
+          <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} live={liveMap} onOpen={openEvent} />
         )}
-        {view === "discover" && <Discover onChanged={refresh} />}
+        {view === "discover" && <Discover categories={state.categories} onChanged={refresh} />}
         {view === "settings" && (
           <SettingsView state={state} onChanged={refresh} onLogout={logout} />
         )}
@@ -233,6 +274,34 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         }}
       />
     </div>
+  );
+}
+
+function UpNextHero({ occ, category, now, onOpen }: { occ: Occurrence; category?: { emoji: string; name: string; color: string }; now: number; onOpen: () => void }) {
+  const color = category?.color ?? "var(--primary)";
+  const { d, h, m, s } = preciseCountdown(occ.start.getTime() - now);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    <button
+      onClick={onOpen}
+      className="mb-3 mt-1 flex w-full flex-col gap-2 overflow-hidden rounded-2xl border border-border/70 bg-card p-4 text-left"
+      style={{ background: `linear-gradient(135deg, color-mix(in oklch, ${color} 14%, var(--card)), var(--card))` }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Up next</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color }}>
+          {category?.emoji} {category?.name}
+        </span>
+      </div>
+      <div className="truncate text-lg font-bold tracking-tight">{occ.event.title}</div>
+      <div className="tabular flex items-end gap-1 text-3xl font-bold leading-none" style={{ color }}>
+        {d > 0 && <span>{d}<span className="text-base font-semibold text-muted-foreground">d</span> </span>}
+        <span>{pad(h)}:{pad(m)}:{pad(s)}</span>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {fmtDay(occ.start)}{occ.event.allDay ? "" : ` · ${fmtTime(occ.start)}`}
+      </div>
+    </button>
   );
 }
 

@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,12 +28,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={`dark h-full ${GeistSans.variable} ${GeistMono.variable} antialiased`}
+      className={`h-full ${GeistSans.variable} ${GeistMono.variable} antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full">
-        {children}
-        <Toaster position="top-center" richColors />
+        <ThemeProvider>
+          {children}
+          <Toaster position="top-center" richColors />
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

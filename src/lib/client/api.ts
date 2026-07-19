@@ -1,4 +1,4 @@
-import type { ClientEvent, ClientCategory, StateBundle, CatalogItem } from "./types";
+import type { ClientEvent, ClientCategory, StateBundle, CatalogItem, LiveStatus } from "./types";
 
 async function req<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -60,4 +60,11 @@ export const api = {
   subscribePush: (sub: PushSubscriptionJSON) =>
     req("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
   testPush: () => req<{ sent: number }>("/api/push/test", { method: "POST" }),
+
+  live: (ids: string[]) =>
+    req<Record<string, LiveStatus>>(`/api/live?ids=${encodeURIComponent(ids.join(","))}`),
+
+  backup: () => req<Record<string, unknown>>("/api/backup"),
+  restore: (data: unknown) =>
+    req<{ addedEvents: number; addedFollows: number }>("/api/backup", { method: "POST", body: JSON.stringify(data) }),
 };

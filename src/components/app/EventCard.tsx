@@ -2,23 +2,30 @@
 
 import { Bell, MapPin, Repeat } from "lucide-react";
 import type { Occurrence } from "@/lib/domain/types";
-import type { ClientCategory } from "@/lib/client/types";
+import type { ClientCategory, LiveStatus } from "@/lib/client/types";
 import { humanCountdown, fmtTime } from "@/lib/domain/format";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function scoreLine(live: LiveStatus): string | null {
+  if (!live.away || !live.home) return null;
+  return `${live.away.abbr} ${live.away.score}–${live.home.score} ${live.home.abbr}`;
+}
 
 export function EventCard({
   occ,
   category,
   now,
   reminders,
+  live,
   onOpen,
 }: {
   occ: Occurrence;
   category?: ClientCategory;
   now: number;
   reminders: number;
+  live?: LiveStatus;
   onOpen: () => void;
 }) {
   const color = category?.color ?? "var(--primary)";
@@ -39,6 +46,16 @@ export function EventCard({
     cd = "ended";
   } else if (diff < 3600_000) {
     cdClass = "text-amber-400";
+  }
+
+  // Live scores override the countdown when the game is on or done today.
+  if (live?.state === "in") {
+    cd = scoreLine(live) ?? "LIVE";
+    cdClass = "text-red-400";
+  } else if (live?.state === "post") {
+    const s = scoreLine(live);
+    cd = s ? `Final ${s}` : "Final";
+    cdClass = "text-muted-foreground";
   }
 
   return (
