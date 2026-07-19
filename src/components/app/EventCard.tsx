@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, MapPin, Repeat, Star } from "lucide-react";
+import { Bell, Check, MapPin, Repeat, Star } from "lucide-react";
 import type { Occurrence } from "@/lib/domain/types";
 import type { ClientCategory, LiveStatus } from "@/lib/client/types";
 import { humanCountdown, fmtTime } from "@/lib/domain/format";
@@ -21,6 +21,7 @@ export function EventCard({
   live,
   clash,
   favorite,
+  watched,
   onOpen,
 }: {
   occ: Occurrence;
@@ -30,6 +31,7 @@ export function EventCard({
   live?: LiveStatus;
   clash?: boolean;
   favorite?: boolean;
+  watched?: boolean;
   onOpen: () => void;
 }) {
   const color = category?.color ?? "var(--primary)";
@@ -84,6 +86,7 @@ export function EventCard({
         <span className="flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color }}>
           {category?.emoji} {category?.name ?? "Event"}
           {favorite && <Star className="size-3 fill-current text-primary" />}
+          {watched && <Check className="size-3 text-emerald-400" />}
           {recurring && <Repeat className="size-3 opacity-70" />}
           {reminders > 0 && <Bell className="size-3 opacity-70" />}
         </span>

@@ -34,6 +34,7 @@ export interface ClientEvent {
   reminders: number[];
   tags: string[];
   countUp: boolean;
+  watchedAt: string | null;
   followId: string | null;
   sourceProvider: string | null;
   sourceLabel: string | null;
@@ -56,6 +57,7 @@ export function serializeEvent(e: DbEvent): ClientEvent {
     reminders: parseIntArray(e.reminders),
     tags: parseStringArray(e.tags),
     countUp: e.countUp,
+    watchedAt: e.watchedAt ? e.watchedAt.toISOString() : null,
     followId: e.followId,
     sourceProvider: e.sourceProvider,
     sourceLabel: e.sourceLabel,

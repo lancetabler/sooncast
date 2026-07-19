@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, CalendarDays, ChevronDown, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
+import { Bookmark, CalendarDays, ChevronDown, Compass, ListChecks, Plus, Search, Settings2, Trophy, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
@@ -18,11 +18,13 @@ import { Discover } from "./Discover";
 import { CalendarView } from "./CalendarView";
 import { SettingsView } from "./SettingsView";
 import { ScoresView } from "./ScoresView";
+import { ProfileView } from "./ProfileView";
 import { Onboarding } from "./Onboarding";
 import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-type View = "upcoming" | "calendar" | "scores" | "discover" | "settings";
+type View = "upcoming" | "calendar" | "scores" | "discover" | "profile";
 
 interface Section {
   key: string;
@@ -58,6 +60,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [detail, setDetail] = useState<ClientEvent | null>(null);
   const [showOnboard, setShowOnboard] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
   const [savedViews, setSavedViews] = useState<{ id: string; name: string; categoryId: string; search: string }[]>([]);
 
@@ -248,6 +251,11 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
             {showSearch ? <X className="size-5" /> : <Search className="size-5" />}
           </button>
         )}
+        {view === "profile" && (
+          <button onClick={() => setSettingsOpen(true)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Settings">
+            <Settings2 className="size-5" />
+          </button>
+        )}
       </header>
 
       {showSearch && (view === "upcoming" || view === "calendar") && (
@@ -333,9 +341,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         )}
         {view === "scores" && <ScoresView />}
         {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}
-        {view === "settings" && (
-          <SettingsView state={state} onChanged={refresh} onLogout={logout} />
-        )}
+        {view === "profile" && <ProfileView state={state} onOpenEvent={(ev) => setDetail(ev)} />}
       </main>
 
       {/* FAB */}
@@ -355,7 +361,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         <Tab icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
         <Tab icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => setView("scores")} />
         <Tab icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => setView("discover")} />
-        <Tab icon={<Settings2 className="size-5" />} label="Settings" active={view === "settings"} onClick={() => setView("settings")} />
+        <Tab icon={<User className="size-5" />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
       </nav>
 
       {/* Dialogs */}
@@ -372,7 +378,18 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         category={detail ? catById.get(detail.categoryId ?? "") : undefined}
         onOpenChange={(v) => !v && setDetail(null)}
         onEdit={editEvent}
+        onChanged={refresh}
       />
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Settings</SheetTitle>
+          </SheetHeader>
+          <div className="px-4">
+            <SettingsView state={state} onChanged={refresh} onLogout={logout} />
+          </div>
+        </SheetContent>
+      </Sheet>
       <InstallPrompt />
       <Onboarding
         open={showOnboard}
@@ -428,6 +445,7 @@ function UpcomingSection({
               live={liveMap[occ.event.id]}
               clash={clashKeys.has(occ.key)}
               favorite={isFavorite(occ.event.title)}
+              watched={!!occ.event.watchedAt}
               onOpen={() => onOpen(occ)}
             />
           ))}

@@ -78,6 +78,7 @@ model Event {
   tags        String   @default("[]") // JSON string[]
   imageUrl    String?
   countUp     Boolean  @default(false) // "time since" instead of countdown
+  watchedAt   DateTime? // set when the user marks it watched (powers profile stats)
   liveState   String? // espn: pre | in | post (last seen)
   liveScore   String? // last seen "AWA a-b HOM" for score-change alerts
 

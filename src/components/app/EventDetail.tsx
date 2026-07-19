@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarPlus, ExternalLink, Pencil, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import { CalendarPlus, Check, ExternalLink, Eye, Pencil, Share2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/client/api";
 import { buildICS } from "@/lib/domain/ics";
 import { fmtLongDay, fmtTime, humanCountdown, reminderLabel } from "@/lib/domain/format";
 import type { TrackEvent } from "@/lib/domain/types";
@@ -108,12 +110,13 @@ async function shareCountdown(event: ClientEvent, category: ClientCategory | und
 }
 
 export function EventDetail({
-  event, category, onOpenChange, onEdit,
+  event, category, onOpenChange, onEdit, onChanged,
 }: {
   event: ClientEvent | null;
   category?: ClientCategory;
   onOpenChange: (v: boolean) => void;
   onEdit: (e: ClientEvent) => void;
+  onChanged: () => void;
 }) {
   if (!event) return null;
   return (
@@ -122,14 +125,32 @@ export function EventDetail({
         <SheetHeader>
           <SheetTitle className="sr-only">Event details</SheetTitle>
         </SheetHeader>
-        <DetailBody event={event} category={category} onEdit={onEdit} />
+        <DetailBody event={event} category={category} onEdit={onEdit} onChanged={onChanged} />
       </SheetContent>
     </Sheet>
   );
 }
 
-function DetailBody({ event, category, onEdit }: { event: ClientEvent; category?: ClientCategory; onEdit: (e: ClientEvent) => void }) {
+function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent; category?: ClientCategory; onEdit: (e: ClientEvent) => void; onChanged: () => void }) {
   const [weather, setWeather] = useState<{ max: number; min: number; code: number } | null>(null);
+  const [watchedAt, setWatchedAt] = useState<string | null>(event.watchedAt);
+  const [watchBusy, setWatchBusy] = useState(false);
+  useEffect(() => setWatchedAt(event.watchedAt), [event.id, event.watchedAt]);
+
+  async function toggleWatched() {
+    const next = watchedAt ? null : new Date().toISOString();
+    setWatchedAt(next);
+    setWatchBusy(true);
+    try {
+      await api.updateEvent(event.id, { watchedAt: next });
+      onChanged();
+    } catch {
+      setWatchedAt(watchedAt); // revert
+      toast.error("Couldn't update");
+    } finally {
+      setWatchBusy(false);
+    }
+  }
 
   const start = new Date(event.start);
   const dur = event.allDay ? 1440 : event.durationMin || 120;
@@ -216,6 +237,19 @@ function DetailBody({ event, category, onEdit }: { event: ClientEvent; category?
           ))}
         </div>
       )}
+
+      <button
+        onClick={toggleWatched}
+        disabled={watchBusy}
+        className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${
+          watchedAt
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+            : "border-border bg-card text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        {watchedAt ? <Check className="size-4" /> : <Eye className="size-4" />}
+        {watchedAt ? `Watched · ${fmtLongDay(new Date(watchedAt))}` : "Mark as watched"}
+      </button>
 
       {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}
 

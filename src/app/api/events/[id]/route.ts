@@ -17,6 +17,7 @@ const patchSchema = z.object({
   reminders: z.array(z.number().int().min(0).max(525600)).optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
   countUp: z.boolean().optional(),
+  watchedAt: z.string().nullable().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -48,6 +49,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(d.reminders !== undefined ? { reminders: JSON.stringify(d.reminders) } : {}),
       ...(d.tags !== undefined ? { tags: JSON.stringify(d.tags) } : {}),
       ...(d.countUp !== undefined ? { countUp: d.countUp } : {}),
+      ...(d.watchedAt !== undefined ? { watchedAt: d.watchedAt ? new Date(d.watchedAt) : null } : {}),
     },
   });
   return ok(serializeEvent(updated));

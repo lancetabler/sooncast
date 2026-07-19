@@ -11,6 +11,7 @@ export interface TrackEvent {
   until?: string | null;
   reminders: number[]; // minutes before start
   countUp?: boolean;
+  watchedAt?: string | null;
   location?: string | null;
   url?: string | null;
   note?: string | null;

@@ -39,6 +39,7 @@ export async function GET() {
       reminders: parseIntArray(e.reminders),
       tags: parseStringArray(e.tags),
       countUp: e.countUp,
+      watchedAt: e.watchedAt ? e.watchedAt.toISOString() : null,
       categoryName: e.category?.name ?? null,
     })),
     follows: follows.map((f) => ({ provider: f.provider, ref: f.ref, label: f.label, categorySlug: f.categorySlug })),
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
         reminders: JSON.stringify(Array.isArray(e.reminders) ? e.reminders : []),
         tags: JSON.stringify(Array.isArray(e.tags) ? e.tags : []),
         countUp: !!e.countUp,
+        watchedAt: e.watchedAt ? new Date(e.watchedAt) : null,
         categoryId: e.categoryName ? catByName.get(e.categoryName) ?? null : null,
       },
     });
