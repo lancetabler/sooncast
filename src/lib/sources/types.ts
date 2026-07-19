@@ -34,7 +34,7 @@ export async function fetchJSON<T = unknown>(url: string, ms = 12000): Promise<T
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "CuspTracker/1.0", Accept: "application/json" },
+      headers: { "User-Agent": "RadarrTracker/1.0", Accept: "application/json" },
       // sources change often; keep them fresh but let Next cache briefly
       next: { revalidate: 900 },
     });
@@ -51,7 +51,7 @@ export async function fetchText(url: string, ms = 12000): Promise<string> {
   try {
     const res = await fetch(url.replace(/^webcal:/i, "https:"), {
       signal: ctrl.signal,
-      headers: { "User-Agent": "CuspTracker/1.0" },
+      headers: { "User-Agent": "RadarrTracker/1.0" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();

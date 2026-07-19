@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/client/api";
 import type { CatalogItem } from "@/lib/client/types";
 
-export function Discover({ onChanged, onUpgrade }: { onChanged: () => void; onUpgrade: () => void }) {
+export function Discover({ onChanged }: { onChanged: () => void }) {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [featured, setFeatured] = useState(true);
@@ -45,8 +45,7 @@ export function Discover({ onChanged, onUpgrade }: { onChanged: () => void; onUp
       });
       onChanged();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 402) onUpgrade();
-      else if (err instanceof ApiError && err.status === 409) toast("Already following this");
+      if (err instanceof ApiError && err.status === 409) toast("Already following this");
       else toast.error(err instanceof ApiError ? err.message : "Couldn't follow that");
     } finally {
       setAddingKey(null);

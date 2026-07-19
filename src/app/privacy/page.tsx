@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy — Cusp" };
+export const metadata = { title: "Privacy — Radarr" };
 
 export default function Privacy() {
   return (

@@ -24,16 +24,11 @@ export async function POST(req: Request) {
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) return bad("An account with that email already exists", 409);
 
-  // The very first account to sign up owns the instance: admin, everything unlocked.
-  const isFirstUser = (await prisma.user.count()) === 0;
-
   const user = await prisma.user.create({
     data: {
       email: email.toLowerCase(),
       passwordHash: await hashPassword(password),
       displayName: displayName || null,
-      role: isFirstUser ? "ADMIN" : "USER",
-      plan: isFirstUser ? "PRO" : "FREE",
       timezone: timezone || "UTC",
       categories: {
         create: SEED_CATEGORIES.map((c) => ({ slug: c.slug, name: c.name, emoji: c.emoji, color: c.color })),
@@ -42,5 +37,5 @@ export async function POST(req: Request) {
   });
 
   await createSession(user.id);
-  return ok({ id: user.id, email: user.email, plan: user.plan, role: user.role }, 201);
+  return ok({ id: user.id, email: user.email }, 201);
 }

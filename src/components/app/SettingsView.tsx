@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { BellRing, CalendarClock, Copy, LogOut, RefreshCw, Sparkles, Trash2, Plus, Download } from "lucide-react";
+import { BellRing, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { api, ApiError } from "@/lib/client/api";
 import { enablePush, isStandalone, pushSupported } from "@/lib/client/push";
 import { REMINDER_PRESETS, reminderLabel } from "@/lib/domain/format";
@@ -28,16 +26,13 @@ function Row({ children }: { children: React.ReactNode }) {
 }
 
 export function SettingsView({
-  state, onChanged, onUpgrade, onLogout,
+  state, onChanged, onLogout,
 }: {
   state: StateBundle;
   onChanged: () => void;
-  onUpgrade: () => void;
   onLogout: () => void;
 }) {
-  const { user, limits, follows, categories, events } = state;
-  const isAdmin = user.role === "ADMIN";
-  const isPro = user.plan === "PRO" || isAdmin;
+  const { user, follows, categories, events } = state;
   const [defaults, setDefaults] = useState<number[]>(user.defaultReminders);
   const [pushBusy, setPushBusy] = useState(false);
   const webcal = user.feedUrl.replace(/^https?:\/\//, "webcal://");
@@ -61,7 +56,6 @@ export function SettingsView({
 
   async function toggleDefault(min: number) {
     const next = defaults.includes(min) ? defaults.filter((m) => m !== min) : [...defaults, min].sort((a, b) => a - b);
-    if (next.length > limits.maxRemindersPerEvent) return onUpgrade();
     setDefaults(next);
     try {
       await api.saveSettings({ defaultReminders: next });
@@ -94,9 +88,8 @@ export function SettingsView({
     try {
       await api.createCategory({ name: name.trim(), color, emoji });
       onChanged();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 402) onUpgrade();
-      else toast.error("Couldn't add category");
+    } catch {
+      toast.error("Couldn't add category");
     }
   }
   async function deleteCategory(id: string, name: string) {
@@ -109,12 +102,12 @@ export function SettingsView({
     if (!events.length) return toast("Nothing to export yet");
     const emojiFor = new Map(categories.map((c) => [c.id, c.emoji]));
     const track: TrackEvent[] = events.map((e: ClientEvent) => ({ ...e, freq: e.freq as TrackEvent["freq"] }));
-    const ics = buildICS(track, { calName: "Cusp", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
+    const ics = buildICS(track, { calName: "Radarr", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
     const blob = new Blob([ics], { type: "text/calendar" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "cusp-all.ics";
+    a.download = "radarr-all.ics";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast.success("Opening your calendar…");
@@ -126,31 +119,9 @@ export function SettingsView({
         <Row>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{user.email}</div>
-            <div className="text-xs text-muted-foreground">{isAdmin ? "Owner · all features unlocked" : "Signed in"}</div>
+            <div className="text-xs text-muted-foreground">Signed in</div>
           </div>
-          <Badge variant={isPro ? "default" : "secondary"}>{isAdmin ? "Admin" : isPro ? "Pro" : "Free"}</Badge>
         </Row>
-        {!isPro && (
-          <Button variant="secondary" onClick={onUpgrade} className="justify-start">
-            <Sparkles data-icon="inline-start" className="text-primary" /> Upgrade to Pro
-          </Button>
-        )}
-        {user.plan === "PRO" && !isAdmin && (
-          <Button
-            variant="ghost"
-            className="justify-start text-muted-foreground"
-            onClick={async () => {
-              try {
-                const res = await api.portal();
-                if (res.url) window.location.href = res.url;
-              } catch (err) {
-                toast.error(err instanceof ApiError ? err.message : "Couldn't open billing");
-              }
-            }}
-          >
-            <Sparkles data-icon="inline-start" /> Manage subscription
-          </Button>
-        )}
         <Button variant="ghost" onClick={onLogout} className="justify-start text-muted-foreground">
           <LogOut data-icon="inline-start" /> Sign out
         </Button>
@@ -174,7 +145,7 @@ export function SettingsView({
         </Row>
         {!isStandalone() && (
           <p className="px-1 text-xs text-muted-foreground">
-            On iPhone: Share → <b>Add to Home Screen</b>, then open Cusp from that icon before enabling push.
+            On iPhone: Share → <b>Add to Home Screen</b>, then open Radarr from that icon before enabling push.
           </p>
         )}
       </Section>
@@ -183,7 +154,7 @@ export function SettingsView({
         <div className="rounded-xl border border-border/70 bg-card p-3.5">
           <p className="text-sm text-muted-foreground">
             Subscribe once in Apple/Google Calendar and it auto-updates as your events change. The calendar fires
-            the alarms itself — the dependable way to be alerted when Cusp is closed.
+            the alarms itself — the dependable way to be alerted when Radarr is closed.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" asChild>
@@ -266,7 +237,7 @@ export function SettingsView({
         </Button>
       </Section>
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">Cusp · your data is private to your account.</p>
+      <p className="pt-2 text-center text-xs text-muted-foreground">Radarr · your data is private to your account.</p>
     </div>
   );
 }

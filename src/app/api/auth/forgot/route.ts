@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     await sendEmail({
       to: email,
-      subject: "Reset your Cusp password",
+      subject: "Reset your Radarr password",
       html: resetEmailHtml(`${appUrl}/reset?token=${raw}`),
     });
   }

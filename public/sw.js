@@ -1,7 +1,7 @@
-/* Cusp service worker — offline shell + Web Push.
+/* Radarr service worker — offline shell + Web Push.
    Handles both classic push payloads and Declarative Web Push (iOS 18.4+),
    where the browser may render the notification without us. */
-const CACHE = "cusp-v1";
+const CACHE = "radarr-v1";
 const SHELL = ["/", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -30,7 +30,7 @@ self.addEventListener("push", (e) => {
   // Declarative payloads carry a { notification: {...} } object; the browser
   // may already show it, but we also show it for classic-push browsers.
   const n = data.notification || data;
-  const title = n.title || "Cusp";
+  const title = n.title || "Radarr";
   const options = {
     body: n.body || "",
     tag: n.tag || "radar",

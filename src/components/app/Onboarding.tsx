@@ -40,7 +40,7 @@ export function Onboarding({ open, onOpenChange, onDone }: { open: boolean; onOp
       }
     }
     setBusy(false);
-    if (added) toast.success(`Added ${added} events to Cusp`);
+    if (added) toast.success(`Added ${added} events to Radarr`);
     onDone();
     onOpenChange(false);
   }
@@ -49,7 +49,7 @@ export function Onboarding({ open, onOpenChange, onDone }: { open: boolean; onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Welcome to Cusp 📡</DialogTitle>
+          <DialogTitle>Welcome to Radarr 📡</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Pick a few things to follow and we&apos;ll pull in their whole schedule. You can add more (or your own) anytime.

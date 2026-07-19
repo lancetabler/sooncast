@@ -1,4 +1,4 @@
-# Deploying Cusp — the free stack
+# Deploying Radarr — the free stack
 
 **Vercel** (app) + **Neon** (Postgres) + a **1-minute pinger** for reminders. All free.
 

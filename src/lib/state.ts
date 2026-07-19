@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { serializeEvent, serializeCategory, parseIntArray, type ClientEvent, type ClientCategory } from "@/lib/serialize";
-import { limitsFor, effectivePlan, type PlanLimits } from "@/lib/domain/plan";
 
 export interface ClientFollow {
   id: string;
@@ -16,8 +15,6 @@ export interface ClientUser {
   id: string;
   email: string;
   displayName: string | null;
-  role: string;
-  plan: string;
   timezone: string;
   quietStart: number | null;
   quietEnd: number | null;
@@ -26,7 +23,6 @@ export interface ClientUser {
 }
 export interface StateBundle {
   user: ClientUser;
-  limits: PlanLimits;
   categories: ClientCategory[];
   events: ClientEvent[];
   follows: ClientFollow[];
@@ -48,15 +44,12 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
-      role: user.role,
-      plan: user.plan,
       timezone: user.timezone,
       quietStart: user.quietStart,
       quietEnd: user.quietEnd,
       defaultReminders: parseIntArray(user.defaultReminders),
       feedUrl: `${appUrl}/api/feed/${user.feedToken}`,
     },
-    limits: limitsFor(effectivePlan(user.plan, user.role)),
     categories: categories.map(serializeCategory),
     events: events.map(serializeEvent),
     follows: follows.map((f) => ({

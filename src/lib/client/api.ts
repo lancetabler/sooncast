@@ -60,7 +60,4 @@ export const api = {
   subscribePush: (sub: PushSubscriptionJSON) =>
     req("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
   testPush: () => req<{ sent: number }>("/api/push/test", { method: "POST" }),
-
-  checkout: () => req<{ url?: string }>("/api/billing/checkout", { method: "POST" }),
-  portal: () => req<{ url?: string }>("/api/billing/portal", { method: "POST" }),
 };

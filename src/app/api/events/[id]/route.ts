@@ -2,7 +2,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isResponse, ok, bad } from "@/lib/api";
 import { serializeEvent } from "@/lib/serialize";
-import { limitsFor, effectivePlan } from "@/lib/domain/plan";
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -30,7 +29,6 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Invalid update");
   const d = parsed.data;
-  const limits = limitsFor(effectivePlan(user.plan, user.role));
 
   const updated = await prisma.event.update({
     where: { id },
@@ -45,7 +43,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(d.location !== undefined ? { location: d.location } : {}),
       ...(d.url !== undefined ? { url: d.url } : {}),
       ...(d.note !== undefined ? { note: d.note } : {}),
-      ...(d.reminders !== undefined ? { reminders: JSON.stringify(d.reminders.slice(0, limits.maxRemindersPerEvent)) } : {}),
+      ...(d.reminders !== undefined ? { reminders: JSON.stringify(d.reminders) } : {}),
     },
   });
   return ok(serializeEvent(updated));

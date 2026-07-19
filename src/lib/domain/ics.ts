@@ -50,7 +50,7 @@ function vevent(ev: TrackEvent, opts: ICSOptions): string {
   const prefix = opts.emojiPrefix ? opts.emojiPrefix(ev) : "";
   const lines: string[] = [
     "BEGIN:VEVENT",
-    `UID:${ev.id}@cusp`,
+    `UID:${ev.id}@radarr`,
     `DTSTAMP:${utcStamp(new Date())}`,
   ];
   if (ev.allDay) {
@@ -60,7 +60,7 @@ function vevent(ev: TrackEvent, opts: ICSOptions): string {
   }
   lines.push(`SUMMARY:${icsEscape((prefix ? prefix + " " : "") + ev.title)}`);
   if (ev.location) lines.push(`LOCATION:${icsEscape(ev.location)}`);
-  const desc = [ev.note, ev.url ? "Link: " + ev.url : "", "Tracked in Cusp"].filter(Boolean).join("\\n");
+  const desc = [ev.note, ev.url ? "Link: " + ev.url : "", "Tracked in Radarr"].filter(Boolean).join("\\n");
   if (desc) lines.push(`DESCRIPTION:${icsEscape(desc)}`);
   const rrule = FREQ_MAP[ev.freq];
   if (rrule) {
@@ -79,10 +79,10 @@ export function buildICS(events: TrackEvent[], opts: ICSOptions = {}): string {
   const head = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Cusp//Universal Tracker//EN",
+    "PRODID:-//Radarr//Universal Tracker//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    `X-WR-CALNAME:${icsEscape(opts.calName || "Cusp")}`,
+    `X-WR-CALNAME:${icsEscape(opts.calName || "Radarr")}`,
   ];
   const body = events.map((e) => vevent(e, opts));
   return [...head, ...body, "END:VCALENDAR"].join("\r\n");

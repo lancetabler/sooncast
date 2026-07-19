@@ -7,7 +7,7 @@ export function pushReady(): boolean {
   const priv = process.env.VAPID_PRIVATE_KEY;
   if (!pub || !priv) return false;
   if (!configured) {
-    webpush.setVapidDetails(process.env.VAPID_CONTACT || "mailto:cusp@example.com", pub, priv);
+    webpush.setVapidDetails(process.env.VAPID_CONTACT || "mailto:radarr@example.com", pub, priv);
     configured = true;
   }
   return true;

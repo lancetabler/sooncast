@@ -2,7 +2,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isResponse, ok, bad } from "@/lib/api";
 import { runFollowImport } from "@/lib/import";
-import { limitsFor, effectivePlan } from "@/lib/domain/plan";
 
 const schema = z.object({
   provider: z.enum(["espn", "jolpica", "thesportsdb", "ics", "tmdb"]),
@@ -27,12 +26,6 @@ export async function POST(req: Request) {
 
   const existing = await prisma.follow.findFirst({ where: { userId: user.id, provider: d.provider, ref: d.ref } });
   if (existing) return bad("You already follow this.", 409);
-
-  const limits = limitsFor(effectivePlan(user.plan, user.role));
-  const count = await prisma.follow.count({ where: { userId: user.id } });
-  if (count >= limits.maxFollows) {
-    return bad(`You've reached the ${limits.maxFollows}-source limit on the free plan. Upgrade for unlimited.`, 402);
-  }
 
   const follow = await prisma.follow.create({
     data: { userId: user.id, provider: d.provider, ref: d.ref, label: d.label, categorySlug: d.categorySlug ?? null },

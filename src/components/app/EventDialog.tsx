@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { api, ApiError } from "@/lib/client/api";
 import { REMINDER_PRESETS, reminderLabel } from "@/lib/domain/format";
-import type { ClientCategory, ClientEvent, PlanLimits } from "@/lib/client/types";
+import type { ClientCategory, ClientEvent } from "@/lib/client/types";
 
 const FREQS: Array<[string, string]> = [
   ["none", "Once"], ["daily", "Daily"], ["weekly", "Weekly"], ["biweekly", "2 wks"], ["monthly", "Monthly"],
@@ -31,16 +31,14 @@ function toTimeInput(d: Date) {
 }
 
 export function EventDialog({
-  open, onOpenChange, event, categories, defaultReminders, limits, onSaved, onUpgrade,
+  open, onOpenChange, event, categories, defaultReminders, onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   event: ClientEvent | null;
   categories: ClientCategory[];
   defaultReminders: number[];
-  limits: PlanLimits;
   onSaved: () => void;
-  onUpgrade: () => void;
 }) {
   const isEdit = !!event;
   const initial = useMemo(() => {
@@ -66,10 +64,6 @@ export function EventDialog({
   function toggleReminder(min: number) {
     setF((s) => {
       if (s.reminders.includes(min)) return { ...s, reminders: s.reminders.filter((m) => m !== min) };
-      if (s.reminders.length >= limits.maxRemindersPerEvent) {
-        toast("Reminder limit reached", { description: "Upgrade to Pro for up to 10 per event." });
-        return s;
-      }
       return { ...s, reminders: [...s.reminders, min].sort((a, b) => a - b) };
     });
   }
@@ -97,12 +91,7 @@ export function EventDialog({
       onSaved();
       onOpenChange(false);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 402) {
-        onOpenChange(false);
-        onUpgrade();
-      } else {
-        toast.error(err instanceof ApiError ? err.message : "Couldn't save");
-      }
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save");
     } finally {
       setBusy(false);
     }
@@ -214,7 +203,7 @@ export function EventDialog({
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              On iPhone, add the event to your calendar for alerts when Cusp is closed — or enable push in Settings.
+              On iPhone, add the event to your calendar for alerts when Radarr is closed — or enable push in Settings.
             </p>
           </div>
 
@@ -241,7 +230,7 @@ export function EventDialog({
             <span />
           )}
           <Button onClick={save} disabled={busy}>
-            {busy ? "Saving…" : isEdit ? "Save" : "Add to Cusp"}
+            {busy ? "Saving…" : isEdit ? "Save" : "Add to Radarr"}
           </Button>
         </DialogFooter>
       </DialogContent>

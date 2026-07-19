@@ -20,5 +20,5 @@ export async function POST(req: Request) {
     return bad("Wrong email or password", 401);
   }
   await createSession(user.id);
-  return ok({ id: user.id, email: user.email, plan: user.plan });
+  return ok({ id: user.id, email: user.email });
 }

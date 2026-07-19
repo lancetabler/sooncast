@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { expandEvent, expandAll, reminderFires, advance } from "./recurrence";
 import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
-import { limitsFor, PLAN_LIMITS } from "./plan";
 import type { TrackEvent } from "./types";
 
 function ev(partial: Partial<TrackEvent>): TrackEvent {
@@ -78,7 +77,7 @@ describe("recurrence", () => {
 
 describe("ics", () => {
   it("builds a VCALENDAR with VEVENT and VALARM", () => {
-    const ics = buildICS([ev({ reminders: [60] })], { calName: "Cusp" });
+    const ics = buildICS([ev({ reminders: [60] })], { calName: "Radarr" });
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("BEGIN:VEVENT");
     expect(ics).toContain("SUMMARY:Test");
@@ -121,15 +120,5 @@ describe("format", () => {
     expect(groupFor(new Date("2026-07-20T08:00:00"), new Date("2026-07-20T10:00:00"), now)).toBe("Live");
     expect(groupFor(new Date("2026-07-20T20:00:00"), new Date("2026-07-20T22:00:00"), now)).toBe("Today");
     expect(groupFor(new Date("2026-07-21T20:00:00"), new Date("2026-07-21T22:00:00"), now)).toBe("Tomorrow");
-  });
-});
-
-describe("plan", () => {
-  it("defaults unknown plans to FREE", () => {
-    expect(limitsFor("wat")).toEqual(PLAN_LIMITS.FREE);
-    expect(limitsFor("PRO")).toEqual(PLAN_LIMITS.PRO);
-  });
-  it("PRO lifts the follow ceiling", () => {
-    expect(PLAN_LIMITS.PRO.maxFollows).toBeGreaterThan(PLAN_LIMITS.FREE.maxFollows);
   });
 });

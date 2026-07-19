@@ -2,7 +2,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isResponse, ok, bad } from "@/lib/api";
 import { serializeEvent } from "@/lib/serialize";
-import { limitsFor, effectivePlan } from "@/lib/domain/plan";
 
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
@@ -24,14 +23,8 @@ export async function POST(req: Request) {
   const parsed = eventSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Invalid event");
 
-  const limits = limitsFor(effectivePlan(user.plan, user.role));
-  const count = await prisma.event.count({ where: { userId: user.id } });
-  if (count >= limits.maxEvents) {
-    return bad(`You've reached the ${limits.maxEvents}-event limit on your plan. Upgrade to add more.`, 402);
-  }
-
   const d = parsed.data;
-  const reminders = (d.reminders ?? []).slice(0, limits.maxRemindersPerEvent);
+  const reminders = d.reminders ?? [];
   const created = await prisma.event.create({
     data: {
       userId: user.id,

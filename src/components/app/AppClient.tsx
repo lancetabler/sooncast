@@ -17,7 +17,6 @@ import { Discover } from "./Discover";
 import { CalendarView } from "./CalendarView";
 import { SettingsView } from "./SettingsView";
 import { Onboarding } from "./Onboarding";
-import { UpgradeDialog } from "./UpgradeDialog";
 import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
 
@@ -36,7 +35,6 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [editing, setEditing] = useState<ClientEvent | null>(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [detail, setDetail] = useState<ClientEvent | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
 
   const catById = useMemo(() => new Map(state.categories.map((c) => [c.id, c])), [state.categories]);
@@ -58,7 +56,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   // register SW + first-run onboarding
   useEffect(() => {
     registerServiceWorker();
-    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("cusp_onboarded");
+    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("radarr_onboarded");
     if (!onboarded && state.events.length === 0 && state.follows.length === 0) setShowOnboard(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -109,7 +107,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col pb-24">
       {/* Header */}
-      <header className="cusp-glow sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
+      <header className="radarr-glow sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
         <div className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-violet-500 text-white">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -119,7 +117,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
               <path d="M12 12 L20 6" />
             </svg>
           </span>
-          <span className="text-lg font-bold tracking-tight">Cusp</span>
+          <span className="text-lg font-bold tracking-tight">Radarr</span>
         </div>
         {(view === "upcoming" || view === "calendar") && (
           <button onClick={() => setShowSearch((s) => !s)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" aria-label="Search">
@@ -185,9 +183,9 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         {view === "calendar" && (
           <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} onOpen={openEvent} />
         )}
-        {view === "discover" && <Discover onChanged={refresh} onUpgrade={() => setShowUpgrade(true)} />}
+        {view === "discover" && <Discover onChanged={refresh} />}
         {view === "settings" && (
-          <SettingsView state={state} onChanged={refresh} onUpgrade={() => setShowUpgrade(true)} onLogout={logout} />
+          <SettingsView state={state} onChanged={refresh} onLogout={logout} />
         )}
       </main>
 
@@ -217,9 +215,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         event={editing}
         categories={state.categories}
         defaultReminders={state.user.defaultReminders}
-        limits={state.limits}
         onSaved={refresh}
-        onUpgrade={() => setShowUpgrade(true)}
       />
       <EventDetail
         event={detail}
@@ -227,13 +223,12 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         onOpenChange={(v) => !v && setDetail(null)}
         onEdit={editEvent}
       />
-      <UpgradeDialog open={showUpgrade} onOpenChange={setShowUpgrade} />
       <InstallPrompt />
       <Onboarding
         open={showOnboard}
         onOpenChange={setShowOnboard}
         onDone={() => {
-          localStorage.setItem("cusp_onboarded", "1");
+          localStorage.setItem("radarr_onboarded", "1");
           refresh();
         }}
       />

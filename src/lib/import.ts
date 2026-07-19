@@ -2,7 +2,6 @@ import type { Follow } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fetchFromSource } from "@/lib/sources/registry";
 import { SEED_CATEGORIES } from "@/lib/domain/categories";
-import { limitsFor, effectivePlan } from "@/lib/domain/plan";
 import { parseIntArray } from "@/lib/serialize";
 
 /** Ensure a category exists for the given slug; create it from the seed set if missing. */
@@ -36,14 +35,10 @@ export async function runFollowImport(
 ): Promise<ImportResult> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
-  const limits = limitsFor(effectivePlan(user.plan, user.role));
-  const defaultReminders = parseIntArray(user.defaultReminders).slice(0, limits.maxRemindersPerEvent);
+  const defaultReminders = parseIntArray(user.defaultReminders);
 
   const normalized = await fetchFromSource(follow.provider, follow.ref);
   const categoryId = await ensureCategory(userId, follow.categorySlug);
-
-  const currentCount = await prisma.event.count({ where: { userId } });
-  let budget = Math.max(0, limits.maxEvents - currentCount);
 
   const result: ImportResult = { added: 0, updated: 0, skippedForLimit: 0 };
 
@@ -68,10 +63,6 @@ export async function runFollowImport(
       });
       result.updated++;
     } else {
-      if (budget <= 0) {
-        result.skippedForLimit++;
-        continue;
-      }
       await prisma.event.create({
         data: {
           userId,
@@ -91,7 +82,6 @@ export async function runFollowImport(
         },
       });
       result.added++;
-      budget--;
     }
   }
 

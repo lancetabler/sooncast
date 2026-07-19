@@ -6,12 +6,12 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cusp — everything you're waiting for",
+  title: "Radarr — everything you're waiting for",
   description:
     "A universal tracker. Follow races, games, matches, drops, deadlines — anything with a date — and get reminded before it happens.",
-  applicationName: "Cusp",
+  applicationName: "Radarr",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Cusp" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Radarr" },
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 

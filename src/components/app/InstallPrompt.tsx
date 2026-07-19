@@ -9,7 +9,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "cusp_install_dismissed";
+const DISMISS_KEY = "radarr_install_dismissed";
 
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
@@ -62,11 +62,11 @@ export function InstallPrompt() {
         <div className="min-w-0 flex-1 text-sm">
           {isIOS ? (
             <span className="text-muted-foreground">
-              Install Cusp: tap <Share className="inline size-3.5 align-text-bottom" /> then{" "}
+              Install Radarr: tap <Share className="inline size-3.5 align-text-bottom" /> then{" "}
               <b className="text-foreground">Add to Home Screen</b> — needed for notifications.
             </span>
           ) : (
-            <span className="font-medium">Install Cusp for quick access & alerts</span>
+            <span className="font-medium">Install Radarr for quick access & alerts</span>
           )}
         </div>
         {!isIOS && (

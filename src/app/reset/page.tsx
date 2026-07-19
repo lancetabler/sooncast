@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export default async function ResetPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token } = await searchParams;
   return (
-    <div className="cusp-glow flex min-h-dvh items-center justify-center px-6">
+    <div className="radarr-glow flex min-h-dvh items-center justify-center px-6">
       <ResetForm token={token ?? ""} />
     </div>
   );
