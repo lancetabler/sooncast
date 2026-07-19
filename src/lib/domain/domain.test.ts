@@ -4,6 +4,7 @@ import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
 import { watchLinks, streamingService } from "./watch";
 import { gpTitle } from "../sources/motogp";
+import { bumpSeason, tsdbStart } from "../sources/thesportsdb";
 import { nascarDelta } from "../sports";
 import type { TrackEvent } from "./types";
 
@@ -185,5 +186,22 @@ describe("live sources helpers", () => {
     expect(nascarDelta(-1)).toBe("1 lap down");
     expect(nascarDelta(-3)).toBe("3 laps down");
     expect(nascarDelta("junk")).toBe("");
+  });
+
+  it("bumpSeason handles year and year-range formats", () => {
+    expect(bumpSeason("2025")).toBe("2026");
+    expect(bumpSeason("2025-2026")).toBe("2026-2027");
+    expect(bumpSeason("garbage")).toBeNull();
+  });
+
+  it("tsdbStart uses UTC timestamps and falls back to all-day", () => {
+    expect(tsdbStart("2026-07-24", "10:00:00", "2026-07-24T10:00:00")).toEqual({
+      start: "2026-07-24T10:00:00.000Z",
+      allDay: false,
+    });
+    // midnight/missing time → date-only event anchored at noon UTC
+    expect(tsdbStart("2026-07-24", "00:00:00", null)).toEqual({ start: "2026-07-24T12:00:00.000Z", allDay: true });
+    expect(tsdbStart("2026-07-24", null, null)).toEqual({ start: "2026-07-24T12:00:00.000Z", allDay: true });
+    expect(tsdbStart(null, null, null)).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { espn, ESPN_CATALOG, TEAM_LEAGUES } from "./espn";
 import { jolpica } from "./jolpica";
 import { motogp } from "./motogp";
+import { thesportsdb, tsdbConfigured } from "./thesportsdb";
 import { icsfeed } from "./icsfeed";
 import { tmdb } from "./tmdb";
 import type { CatalogItem, NormalizedEvent, SourceProvider } from "./types";
@@ -11,6 +12,7 @@ const PROVIDERS: Record<string, SourceProvider> = {
   espn,
   jolpica,
   motogp,
+  thesportsdb,
   ics: icsfeed,
   tmdb,
 };
@@ -56,17 +58,51 @@ const MOTOGP_CATALOG: CatalogItem[] = [
   { provider: "motogp", ref: "moto3", label: "Moto3", sublabel: "Full season", categorySlug: "racing" },
 ];
 
+// TheSportsDB (premium key) — every small televised series. League ids verified live.
+const TSDB_CATALOG: CatalogItem[] = [
+  { provider: "thesportsdb", ref: "4409", label: "WRC — World Rally", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4371", label: "Formula E", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4486", label: "Formula 2", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4487", label: "Formula 3", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5382", label: "F1 Academy", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4454", label: "World Superbike (WSBK)", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5264", label: "British Superbikes (BSB)", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4372", label: "BTCC", sublabel: "British Touring Cars — full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4438", label: "DTM", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4489", label: "Supercars (Australia)", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4468", label: "AMA Supercross", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4469", label: "Pro Motocross", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5412", label: "SuperMotocross", sublabel: "Playoffs & finals", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5309", label: "NHRA Drag Racing", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5094", label: "NASCAR ARCA Series", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4730", label: "World Rallycross", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4712", label: "Extreme E", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4447", label: "Dakar Rally", sublabel: "Every stage", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4732", label: "Isle of Man TT", sublabel: "Every race", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4440", label: "GT World Challenge", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "5491", label: "FIM Endurance (EWC)", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "thesportsdb", ref: "4445", label: "Boxing", sublabel: "Major cards worldwide", categorySlug: "combat" },
+  { provider: "thesportsdb", ref: "4554", label: "PDC Darts", sublabel: "Every tournament", categorySlug: "darts" },
+  { provider: "thesportsdb", ref: "4555", label: "World Snooker", sublabel: "Every tournament", categorySlug: "snooker" },
+  { provider: "thesportsdb", ref: "5007", label: "World Athletics Championships", sublabel: "Every session", categorySlug: "athletics" },
+];
+
 export function featuredCatalog(): CatalogItem[] {
   // Order defines the Discover groups: racing block first, then team leagues, then event sports.
+  // TheSportsDB entries only appear once its key is configured.
   const racing = ESPN_CATALOG.filter((c) => c.categorySlug === "racing");
   const rest = ESPN_CATALOG.filter((c) => c.categorySlug !== "racing");
+  const tsdbRacing = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug === "racing") : [];
+  const tsdbRest = tsdbConfigured() ? TSDB_CATALOG.filter((c) => c.categorySlug !== "racing") : [];
   return [
     { provider: "jolpica", ref: "current", label: "Formula 1", sublabel: "Full season — races, quali & sprints", categorySlug: "f1" },
     ...racing,
     ...MOTOGP_CATALOG,
+    ...tsdbRacing,
     ...ICS_FEEDS,
     ...LEAGUE_FOLLOWS,
     ...rest,
+    ...tsdbRest,
     { provider: "tmdb", ref: "upcoming", label: "Movies — upcoming releases", sublabel: "New theatrical releases", categorySlug: "screen" },
   ];
 }
