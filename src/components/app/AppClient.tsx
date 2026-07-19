@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, CalendarDays, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
+import { Bookmark, CalendarDays, ChevronDown, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
 import { occurrences } from "@/lib/client/occurrences";
-import { groupFor, sameDay, preciseCountdown, fmtDay, fmtTime, type GroupLabel } from "@/lib/domain/format";
+import { sameDay, preciseCountdown, fmtDay, fmtTime, addDays, startOfDay } from "@/lib/domain/format";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Occurrence } from "@/lib/domain/types";
-import type { ClientEvent, StateBundle, LiveStatus } from "@/lib/client/types";
+import type { ClientEvent, ClientCategory, StateBundle, LiveStatus } from "@/lib/client/types";
 import { EventCard } from "./EventCard";
 import { EventDialog } from "./EventDialog";
 import { EventDetail } from "./EventDetail";
@@ -22,7 +23,26 @@ import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
 
 type View = "upcoming" | "calendar" | "scores" | "discover" | "settings";
-const GROUP_ORDER: GroupLabel[] = ["Live", "Today", "Tomorrow", "This week", "Later"];
+
+interface Section {
+  key: string;
+  label: string;
+  items: Occurrence[];
+  nearTerm: boolean;
+}
+const SECTION_CAP = 25; // cap cards rendered per section before "show more"
+
+// Assign an occurrence to a section: fine-grained near term, then month-by-month.
+function sectionFor(o: Occurrence, now: number): { key: string; label: string; order: number; nearTerm: boolean } {
+  const s = o.start;
+  const nowDate = new Date(now);
+  if (now >= o.start.getTime() && now < o.end.getTime()) return { key: "live", label: "Live", order: 0, nearTerm: true };
+  if (sameDay(s, nowDate)) return { key: "today", label: "Today", order: 1, nearTerm: true };
+  if (sameDay(s, addDays(nowDate, 1))) return { key: "tomorrow", label: "Tomorrow", order: 2, nearTerm: true };
+  if (s.getTime() < addDays(startOfDay(nowDate), 7).getTime()) return { key: "week", label: "This week", order: 3, nearTerm: true };
+  const label = s.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return { key: `m-${s.getFullYear()}-${s.getMonth()}`, label, order: 100 + s.getFullYear() * 12 + s.getMonth(), nearTerm: false };
+}
 
 export default function AppClient({ initial }: { initial: StateBundle }) {
   const router = useRouter();
@@ -32,6 +52,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [coarseNow, setCoarseNow] = useState(() => Date.now());
 
   const [editing, setEditing] = useState<ClientEvent | null>(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
@@ -74,10 +95,14 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     }
   }, []);
 
-  // countdown ticker
+  // countdown ticker (1s) for live countdowns; coarse clock (30s) drives the heavy grouping memos
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    const c = setInterval(() => setCoarseNow(Date.now()), 30_000);
+    return () => {
+      clearInterval(t);
+      clearInterval(c);
+    };
   }, []);
 
   // register SW + first-run onboarding
@@ -90,9 +115,9 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
 
   // home-screen badge = events starting in the next 24h
   useEffect(() => {
-    const soon = occurrences(state.events, new Date(now), new Date(now + 86400_000)).length;
+    const soon = occurrences(state.events, new Date(coarseNow), new Date(coarseNow + 86400_000)).length;
     setBadge(soon);
-  }, [state.events, now]);
+  }, [state.events, coarseNow]);
 
   // poll live scores/status for ESPN games happening today
   useEffect(() => {
@@ -121,17 +146,25 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     };
   }, [state.events]);
 
-  const upcoming = useMemo(() => {
-    const from = new Date(now - 3 * 3600_000);
-    const to = new Date(now + 400 * 86400_000);
+  // Sections: Live/Today/Tomorrow/This week, then month-by-month. Driven by the coarse clock.
+  const sections = useMemo<Section[]>(() => {
+    const from = new Date(coarseNow - 3 * 3600_000);
+    const to = new Date(coarseNow + 400 * 86400_000);
     const occ = occurrences(state.events, from, to, { categoryId: filter, search });
-    const groups = new Map<GroupLabel, Occurrence[]>();
+    const map = new Map<string, Section>();
+    const order = new Map<string, number>();
     for (const o of occ) {
-      const g = groupFor(o.start, o.end, new Date(now));
-      (groups.get(g) ?? groups.set(g, []).get(g)!).push(o);
+      const sec = sectionFor(o, coarseNow);
+      let entry = map.get(sec.key);
+      if (!entry) {
+        entry = { key: sec.key, label: sec.label, items: [], nearTerm: sec.nearTerm };
+        map.set(sec.key, entry);
+        order.set(sec.key, sec.order);
+      }
+      entry.items.push(o);
     }
-    return groups;
-  }, [state.events, filter, search, now]);
+    return [...map.values()].sort((a, b) => order.get(a.key)! - order.get(b.key)!);
+  }, [state.events, filter, search, coarseNow]);
 
   const usedCategories = useMemo(() => {
     const ids = new Set(state.events.map((e) => e.categoryId));
@@ -153,17 +186,16 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   );
 
   const nextUp = useMemo(() => {
-    for (const g of ["Today", "Tomorrow", "This week", "Later"] as GroupLabel[]) {
-      const items = upcoming.get(g);
-      const fut = items?.find((o) => o.start.getTime() > now);
+    for (const sec of sections) {
+      const fut = sec.items.find((o) => o.start.getTime() > now);
       if (fut) return fut;
     }
     return null;
-  }, [upcoming, now]);
+  }, [sections, now]);
 
-  // occurrences whose time overlaps another (timed events only)
+  // occurrences whose time overlaps another (near-term timed events only — that's where clashes matter)
   const clashKeys = useMemo(() => {
-    const all = [...upcoming.values()].flat().filter((o) => !o.event.allDay && !o.event.countUp);
+    const all = sections.filter((s) => s.nearTerm).flatMap((s) => s.items).filter((o) => !o.event.allDay && !o.event.countUp);
     const set = new Set<string>();
     for (let i = 0; i < all.length; i++) {
       for (let j = i + 1; j < all.length; j++) {
@@ -174,7 +206,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       }
     }
     return set;
-  }, [upcoming]);
+  }, [sections]);
 
   function openEvent(occ: Occurrence) {
     const ev = state.events.find((e) => e.id === occ.event.id);
@@ -194,7 +226,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     router.refresh();
   }
 
-  const totalUpcoming = [...upcoming.values()].reduce((n, arr) => n + arr.length, 0);
+  const totalUpcoming = sections.reduce((n, s) => n + s.items.length, 0);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col pb-24">
@@ -279,32 +311,19 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
               {nextUp && !search && (
                 <UpNextHero occ={nextUp} category={catById.get(nextUp.event.categoryId ?? "")} now={now} onOpen={() => openEvent(nextUp)} />
               )}
-              {GROUP_ORDER.map((g) => {
-                const items = upcoming.get(g);
-                if (!items?.length) return null;
-                return (
-                  <section key={g} className="mb-3">
-                    <h2 className="mb-2 mt-4 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {g} <span className="text-muted-foreground/60">· {items.length}</span>
-                    </h2>
-                    <div className="flex flex-col gap-2">
-                      {items.map((occ) => (
-                        <EventCard
-                          key={occ.key}
-                          occ={occ}
-                          category={catById.get(occ.event.categoryId ?? "")}
-                          now={now}
-                          reminders={occ.event.reminders.length}
-                          live={liveMap[occ.event.id]}
-                          clash={clashKeys.has(occ.key)}
-                          favorite={isFavorite(occ.event.title)}
-                          onOpen={() => openEvent(occ)}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
+              {sections.map((sec) => (
+                <UpcomingSection
+                  key={sec.key}
+                  section={sec}
+                  defaultOpen={sec.nearTerm}
+                  catById={catById}
+                  now={now}
+                  liveMap={liveMap}
+                  clashKeys={clashKeys}
+                  isFavorite={isFavorite}
+                  onOpen={openEvent}
+                />
+              ))}
             </div>
           )
         )}
@@ -364,6 +383,65 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         }}
       />
     </div>
+  );
+}
+
+function UpcomingSection({
+  section,
+  defaultOpen,
+  catById,
+  now,
+  liveMap,
+  clashKeys,
+  isFavorite,
+  onOpen,
+}: {
+  section: Section;
+  defaultOpen: boolean;
+  catById: Map<string, ClientCategory>;
+  now: number;
+  liveMap: Record<string, LiveStatus>;
+  clashKeys: Set<string>;
+  isFavorite: (title: string) => boolean;
+  onOpen: (occ: Occurrence) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [showAll, setShowAll] = useState(false);
+  const items = showAll ? section.items : section.items.slice(0, SECTION_CAP);
+  const hidden = section.items.length - items.length;
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-1.5">
+      <CollapsibleTrigger className="mt-2 flex w-full items-center gap-2 rounded-lg px-1 py-2 text-left transition hover:bg-secondary/40">
+        <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.label}</span>
+        <span className="tabular rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{section.items.length}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-1">
+        <div className="flex flex-col gap-2">
+          {items.map((occ) => (
+            <EventCard
+              key={occ.key}
+              occ={occ}
+              category={catById.get(occ.event.categoryId ?? "")}
+              now={now}
+              reminders={occ.event.reminders.length}
+              live={liveMap[occ.event.id]}
+              clash={clashKeys.has(occ.key)}
+              favorite={isFavorite(occ.event.title)}
+              onOpen={() => onOpen(occ)}
+            />
+          ))}
+          {hidden > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="mt-1 self-center rounded-full border border-border px-4 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              Show {hidden} more
+            </button>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
