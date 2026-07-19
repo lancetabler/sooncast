@@ -1,4 +1,4 @@
-import type { ClientEvent, ClientCategory, StateBundle, CatalogItem, LiveStatus } from "./types";
+import type { ClientEvent, ClientCategory, StateBundle, CatalogItem, LiveStatus, LeagueOverview } from "./types";
 
 async function req<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -64,6 +64,8 @@ export const api = {
 
   live: (ids: string[]) =>
     req<Record<string, LiveStatus>>(`/api/live?ids=${encodeURIComponent(ids.join(","))}`),
+
+  sportsOverview: () => req<{ leagues: LeagueOverview[] }>("/api/sports/overview"),
 
   backup: () => req<Record<string, unknown>>("/api/backup"),
   restore: (data: unknown) =>

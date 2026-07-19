@@ -17,3 +17,24 @@ export interface LiveStatus {
   home?: { abbr: string; score: string };
   away?: { abbr: string; score: string };
 }
+
+export interface NewsItem {
+  headline: string;
+  description?: string;
+  link?: string;
+  image?: string;
+}
+export interface StandingRow {
+  rank: number;
+  team: string;
+  logo?: string;
+  record?: string;
+  points?: string;
+  highlight: boolean;
+}
+export interface LeagueOverview {
+  ref: string;
+  label: string;
+  news: NewsItem[];
+  standings: StandingRow[];
+}

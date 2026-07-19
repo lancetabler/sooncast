@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Compass, ListChecks, Plus, Search, Settings2, X } from "lucide-react";
+import { CalendarDays, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
@@ -16,11 +16,12 @@ import { EventDetail } from "./EventDetail";
 import { Discover } from "./Discover";
 import { CalendarView } from "./CalendarView";
 import { SettingsView } from "./SettingsView";
+import { ScoresView } from "./ScoresView";
 import { Onboarding } from "./Onboarding";
 import { InstallPrompt } from "./InstallPrompt";
 import { Input } from "@/components/ui/input";
 
-type View = "upcoming" | "calendar" | "discover" | "settings";
+type View = "upcoming" | "calendar" | "scores" | "discover" | "settings";
 const GROUP_ORDER: GroupLabel[] = ["Live", "Today", "Tomorrow", "This week", "Later"];
 
 export default function AppClient({ initial }: { initial: StateBundle }) {
@@ -240,6 +241,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         {view === "calendar" && (
           <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} live={liveMap} onOpen={openEvent} />
         )}
+        {view === "scores" && <ScoresView />}
         {view === "discover" && <Discover categories={state.categories} onChanged={refresh} />}
         {view === "settings" && (
           <SettingsView state={state} onChanged={refresh} onLogout={logout} />
@@ -261,6 +263,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl border-t border-border/60 bg-background/85 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <Tab icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => setView("upcoming")} />
         <Tab icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
+        <Tab icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => setView("scores")} />
         <Tab icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => setView("discover")} />
         <Tab icon={<Settings2 className="size-5" />} label="Settings" active={view === "settings"} onClick={() => setView("settings")} />
       </nav>
