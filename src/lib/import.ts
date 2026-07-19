@@ -1,4 +1,4 @@
-import type { Follow } from "@prisma/client";
+import type { Follow, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fetchFromSource } from "@/lib/sources/registry";
 import { SEED_CATEGORIES } from "@/lib/domain/categories";
@@ -37,40 +37,37 @@ export async function runFollowImport(
   if (!user) throw new Error("User not found");
   const defaultReminders = parseIntArray(user.defaultReminders);
 
-  const normalized = await fetchFromSource(follow.provider, follow.ref);
-  const categoryId = await ensureCategory(userId, follow.categorySlug);
+  const normalizedRaw = await fetchFromSource(follow.provider, follow.ref);
+  // De-dupe within this fetch so a single import never inserts the same game twice.
+  const seenExt = new Set<string>();
+  const normalized = normalizedRaw.filter((n) => {
+    if (seenExt.has(n.extId)) return false;
+    seenExt.add(n.extId);
+    return true;
+  });
 
+  const categoryId = await ensureCategory(userId, follow.categorySlug);
   const result: ImportResult = { added: 0, updated: 0, skippedForLimit: 0 };
 
-  for (const n of normalized) {
-    const sourceExtId = `${follow.provider}:${n.extId}`;
-    const existing = await prisma.event.findFirst({ where: { userId, sourceExtId } });
-    if (existing) {
-      await prisma.event.update({
-        where: { id: existing.id },
-        data: {
-          title: n.title,
-          start: new Date(n.start),
-          durationMin: n.durationMin,
-          location: n.location ?? null,
-          note: n.note ?? null,
-          url: n.url ?? null,
-          imageUrl: n.imageUrl ?? null,
-          sourceLabel: existing.followId ? existing.sourceLabel : follow.label,
-          // keep the original owner so unfollowing an overlapping source (e.g. a team you also
-          // follow via its league) doesn't cascade-delete games another follow still wants
-          followId: existing.followId ?? follow.id,
-          categoryId: existing.categoryId ?? categoryId,
-        },
-      });
-      result.updated++;
-    } else {
-      await prisma.event.create({
-        data: {
+  if (normalized.length) {
+    // One query to load everything that already exists, instead of one per game.
+    const extIds = normalized.map((n) => `${follow.provider}:${n.extId}`);
+    const existing = await prisma.event.findMany({ where: { userId, sourceExtId: { in: extIds } } });
+    const byExt = new Map(existing.map((e) => [e.sourceExtId!, e]));
+
+    const toCreate: Prisma.EventCreateManyInput[] = [];
+    const updates: Prisma.PrismaPromise<unknown>[] = [];
+
+    for (const n of normalized) {
+      const sourceExtId = `${follow.provider}:${n.extId}`;
+      const start = new Date(n.start);
+      const ex = byExt.get(sourceExtId);
+      if (!ex) {
+        toCreate.push({
           userId,
           categoryId,
           title: n.title,
-          start: new Date(n.start),
+          start,
           durationMin: n.durationMin,
           location: n.location ?? null,
           note: n.note ?? null,
@@ -81,10 +78,49 @@ export async function runFollowImport(
           sourceProvider: follow.provider,
           sourceExtId,
           sourceLabel: follow.label,
-        },
-      });
-      result.added++;
+        });
+      } else {
+        // Only write when something actually changed — keeps re-syncs cheap.
+        const changed =
+          ex.title !== n.title ||
+          ex.start.getTime() !== start.getTime() ||
+          (ex.location ?? null) !== (n.location ?? null) ||
+          (ex.url ?? null) !== (n.url ?? null) ||
+          (ex.note ?? null) !== (n.note ?? null) ||
+          (ex.imageUrl ?? null) !== (n.imageUrl ?? null);
+        if (changed) {
+          updates.push(
+            prisma.event.update({
+              where: { id: ex.id },
+              data: {
+                title: n.title,
+                start,
+                durationMin: n.durationMin,
+                location: n.location ?? null,
+                note: n.note ?? null,
+                url: n.url ?? null,
+                imageUrl: n.imageUrl ?? null,
+                // keep the original owner so unfollowing an overlapping source doesn't delete shared games
+                sourceLabel: ex.followId ? ex.sourceLabel : follow.label,
+                followId: ex.followId ?? follow.id,
+                categoryId: ex.categoryId ?? categoryId,
+              },
+            })
+          );
+        }
+      }
     }
+
+    if (toCreate.length) {
+      const r = await prisma.event.createMany({ data: toCreate, skipDuplicates: true });
+      result.added = r.count;
+    }
+    // Batch updates in chunks so we never fire hundreds of individual round-trips.
+    const CHUNK = 50;
+    for (let i = 0; i < updates.length; i += CHUNK) {
+      await prisma.$transaction(updates.slice(i, i + CHUNK));
+    }
+    result.updated = updates.length;
   }
 
   await prisma.follow.update({ where: { id: follow.id }, data: { lastSync: new Date() } });

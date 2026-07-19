@@ -45,6 +45,8 @@ const LEAGUE_FOLLOWS: CatalogItem[] = [
   { provider: "espn", ref: "soccer/ita.1", label: "Serie A", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
   { provider: "espn", ref: "soccer/usa.1", label: "MLS", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
   { provider: "espn", ref: "soccer/uefa.champions", label: "Champions League", sublabel: "Every fixture", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/uefa.europa", label: "Europa League", sublabel: "Every fixture", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/usa.nwsl", label: "NWSL", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
   { provider: "espn", ref: "football/college-football", label: "College Football", sublabel: "Search your school's team", categorySlug: "football" },
   { provider: "espn", ref: "basketball/mens-college-basketball", label: "NCAA Basketball", sublabel: "Search your school's team", categorySlug: "basketball" },
 ];

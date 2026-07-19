@@ -187,10 +187,13 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.location, event.start]);
 
+  const watch = event.note && event.note.startsWith("📺") ? event.note.replace(/^📺\s*/, "") : null;
+
   const rows: Array<[string, React.ReactNode]> = [
     ["Category", `${category?.emoji ?? ""} ${category?.name ?? "—"}`],
     ["When", event.allDay ? `${fmtLongDay(start)} · All day` : `${fmtLongDay(start)} · ${fmtTime(start)}`],
   ];
+  if (watch) rows.push(["Where to watch", `📺 ${watch}`]);
   if (event.freq && event.freq !== "none") rows.push(["Repeats", event.freq]);
   if (event.location) rows.push(["Location", event.location]);
   if (event.reminders.length) rows.push(["Reminders", event.reminders.map(reminderLabel).join(", ")]);
@@ -251,7 +254,7 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
         {watchedAt ? `Watched · ${fmtLongDay(new Date(watchedAt))}` : "Mark as watched"}
       </button>
 
-      {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}
+      {event.note && !watch && <p className="text-sm text-muted-foreground">{event.note}</p>}
 
       <div className="flex flex-col divide-y divide-border/60">
         {rows.map(([k, v]) => (

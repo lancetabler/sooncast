@@ -6,6 +6,18 @@ function ymd(d: Date) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+// Networks / streaming services carrying a game — "where to watch".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function broadcastsOf(comp: any): string | undefined {
+  const list = comp?.broadcasts;
+  if (!Array.isArray(list) || !list.length) return undefined;
+  const names: string[] = [];
+  for (const b of list) if (b?.market === "national") for (const n of b?.names || []) names.push(n);
+  for (const b of list) if (b?.market !== "national") for (const n of b?.names || []) names.push(n);
+  const uniq = [...new Set(names.filter(Boolean))].slice(0, 3);
+  return uniq.length ? uniq.join(", ") : undefined;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeEvent(e: any, leagueName: string): NormalizedEvent | null {
   const start = e?.date || e?.startDate;
@@ -20,13 +32,14 @@ function normalizeEvent(e: any, leagueName: string): NormalizedEvent | null {
     comp?.competitors?.find((c: any) => c?.homeAway === "home")?.team?.logo ||
     comp?.competitors?.[0]?.team?.logo;
   const link = (e?.links || []).find((l: any) => l?.href)?.href;
+  const network = broadcastsOf(comp);
   return {
     extId: `espn-${e.id || e.uid || start}`,
     title: e?.name || e?.shortName || "Event",
     start: new Date(start).toISOString(),
     durationMin: 180,
     location: venue || undefined,
-    note: leagueName || undefined,
+    note: network ? `📺 ${network}` : leagueName || undefined,
     url: link || undefined,
     imageUrl: logo || undefined,
   };
@@ -59,12 +72,21 @@ export const TEAM_LEAGUES: Array<{ ref: string; name: string; slug: string; brow
   { ref: "soccer/usa.1", name: "MLS", slug: "soccer", browse: true },
   { ref: "soccer/mex.1", name: "Liga MX", slug: "soccer", browse: true },
   { ref: "soccer/uefa.champions", name: "Champions League", slug: "soccer", browse: true },
+  { ref: "soccer/uefa.europa", name: "Europa League", slug: "soccer", browse: true },
+  { ref: "soccer/usa.nwsl", name: "NWSL", slug: "soccer", browse: true },
+  { ref: "soccer/eng.2", name: "EFL Championship", slug: "soccer", browse: true },
+  { ref: "soccer/ned.1", name: "Eredivisie", slug: "soccer", browse: true },
+  { ref: "soccer/por.1", name: "Primeira Liga", slug: "soccer", browse: true },
   { ref: "football/college-football", name: "College Football", slug: "football", browse: false },
   { ref: "basketball/mens-college-basketball", name: "NCAA Basketball", slug: "basketball", browse: false },
 ];
 
-// Leagues searched by team name on every keystroke (kept to the pro leagues for speed).
-const SEARCH_LEAGUES = TEAM_LEAGUES.filter((l) => l.browse);
+// Leagues searched by team name on every keystroke (curated subset so search stays fast).
+const SEARCH_LEAGUE_REFS = new Set([
+  "hockey/nhl", "basketball/nba", "basketball/wnba", "football/nfl", "baseball/mlb",
+  "soccer/eng.1", "soccer/esp.1", "soccer/ger.1", "soccer/ita.1", "soccer/usa.1", "soccer/uefa.champions",
+]);
+const SEARCH_LEAGUES = TEAM_LEAGUES.filter((l) => SEARCH_LEAGUE_REFS.has(l.ref));
 
 /** List all teams in a league as followable catalog items (favorite-team picker). */
 export async function leagueTeams(ref: string): Promise<CatalogItem[]> {
@@ -152,6 +174,8 @@ export const espn: SourceProvider = {
 export const ESPN_CATALOG: CatalogItem[] = [
   { provider: "espn", ref: "racing/irl", label: "IndyCar", sublabel: "Full season", categorySlug: "racing" },
   { provider: "espn", ref: "racing/nascar-premier", label: "NASCAR Cup Series", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "espn", ref: "racing/nascar-secondary", label: "NASCAR Xfinity Series", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "espn", ref: "racing/nascar-truck", label: "NASCAR Truck Series", sublabel: "Full season", categorySlug: "racing" },
   { provider: "espn", ref: "tennis/atp", label: "Tennis — ATP", sublabel: "Upcoming tournaments", categorySlug: "tennis" },
   { provider: "espn", ref: "tennis/wta", label: "Tennis — WTA", sublabel: "Upcoming tournaments", categorySlug: "tennis" },
 ];

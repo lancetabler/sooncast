@@ -42,6 +42,7 @@ export function EventCard({
   const isPast = now >= endMs;
   const diff = startMs - now;
   const recurring = occ.event.freq && occ.event.freq !== "none";
+  const watch = occ.event.note && occ.event.note.startsWith("📺") ? occ.event.note.replace(/^📺\s*/, "") : null;
 
   let cd = humanCountdown(diff);
   let cdClass = "text-muted-foreground";
@@ -103,6 +104,7 @@ export function EventCard({
               <MapPin className="size-3" /> {occ.event.location}
             </span>
           )}
+          {watch && <span className="inline-flex items-center gap-1 truncate text-foreground/70">📺 {watch}</span>}
           {clash && <span className="font-medium text-amber-400">⚠ overlaps</span>}
         </span>
       </div>
