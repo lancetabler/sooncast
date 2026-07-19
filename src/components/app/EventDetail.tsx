@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CalendarPlus, Check, ExternalLink, Eye, Pencil, Share2 } from "lucide-react";
+import { CalendarPlus, Check, ExternalLink, Eye, Pencil, Play, Share2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client/api";
 import { buildICS } from "@/lib/domain/ics";
 import { fmtLongDay, fmtTime, humanCountdown, reminderLabel } from "@/lib/domain/format";
+import { streamingService, watchLinks } from "@/lib/domain/watch";
 import type { TrackEvent } from "@/lib/domain/types";
 import type { ClientCategory, ClientEvent } from "@/lib/client/types";
 
@@ -191,12 +192,36 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   }, [event.location, event.start]);
 
   const watch = event.note && event.note.startsWith("📺") ? event.note.replace(/^📺\s*/, "") : null;
+  const networks = watchLinks(watch);
+  const service = streamingService(event);
 
   const rows: Array<[string, React.ReactNode]> = [
     ["Category", `${category?.emoji ?? ""} ${category?.name ?? "—"}`],
     ["When", event.allDay ? `${fmtLongDay(start)} · All day` : `${fmtLongDay(start)} · ${fmtTime(start)}`],
   ];
-  if (watch) rows.push(["Where to watch", `📺 ${watch}`]);
+  if (networks.length)
+    rows.push([
+      "Where to watch",
+      <span key="w" className="flex flex-wrap items-center gap-1.5">
+        {networks.map((n) =>
+          n.url ? (
+            <a
+              key={n.name}
+              href={n.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+            >
+              📺 {n.name} <ExternalLink className="size-3" />
+            </a>
+          ) : (
+            <span key={n.name} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium">
+              📺 {n.name}
+            </span>
+          )
+        )}
+      </span>,
+    ]);
   if (event.freq && event.freq !== "none") rows.push(["Repeats", event.freq]);
   if (event.location) rows.push(["Location", event.location]);
   if (event.reminders.length) rows.push(["Reminders", event.reminders.map(reminderLabel).join(", ")]);
@@ -235,6 +260,17 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
         <div className="tabular text-3xl font-bold tracking-tight">{cd}</div>
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{event.countUp ? "since" : diff > 0 ? "until start" : ""}</div>
       </div>
+
+      {service?.url && (
+        <a
+          href={service.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+        >
+          <Play className="size-4" /> Watch on {service.name}
+        </a>
+      )}
 
       {event.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

@@ -6,10 +6,34 @@ import { Plus, Search, Loader2, CalendarPlus, Check, Users, ChevronDown } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { api, ApiError } from "@/lib/client/api";
+import { SEED_CATEGORIES } from "@/lib/domain/categories";
 import type { CatalogItem, ClientCategory, ClientFollow } from "@/lib/client/types";
 
 const followKey = (provider: string, ref: string) => `${provider}::${ref}`;
+
+const seedBySlug = new Map(SEED_CATEGORIES.map((c) => [c.slug, c]));
+
+// Bucket the featured catalog by sport so 50+ leagues stay scannable.
+function groupItems(list: CatalogItem[]): Array<{ slug: string; items: CatalogItem[] }> {
+  const order: string[] = [];
+  const map = new Map<string, CatalogItem[]>();
+  for (const it of list) {
+    const key = it.categorySlug || "other";
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(it);
+  }
+  return order.map((slug) => ({ slug, items: map.get(slug)! }));
+}
+
+function groupTitle(slug: string) {
+  const seed = seedBySlug.get(slug);
+  return seed ? `${seed.emoji} ${seed.name}` : slug;
+}
 
 // Module-scope so it keeps a stable identity across renders (otherwise inputs lose focus).
 function FollowPill({
@@ -65,6 +89,7 @@ export function Discover({
   const [featured, setFeatured] = useState(true);
   const [loading, setLoading] = useState(false);
   const [addingKey, setAddingKey] = useState<string | null>(null);
+  const [confirmItem, setConfirmItem] = useState<CatalogItem | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // per-league team lists (favorite-team picker), lazily loaded
@@ -121,11 +146,10 @@ export function Discover({
     }
   }
 
-  async function unfollow(item: CatalogItem) {
+  async function doUnfollow(item: CatalogItem) {
     const key = followKey(item.provider, item.ref);
     const id = followIdByKey.get(key);
     if (!id) return;
-    if (!confirm(`Unfollow ${item.label}? This removes its imported events.`)) return;
     setAddingKey(key);
     try {
       await api.deleteFollow(id);
@@ -180,6 +204,71 @@ export function Discover({
     }
   }
 
+  const renderItem = (item: CatalogItem) => {
+    const canBrowse = !!item.browse;
+    const isOpen = openLeague === item.ref;
+    const teams = teamCache[item.ref] ?? [];
+    const filtered = teamFilter.trim()
+      ? teams.filter((t) => t.label.toLowerCase().includes(teamFilter.trim().toLowerCase()))
+      : teams;
+    return (
+      <div key={followKey(item.provider, item.ref)} className="overflow-hidden rounded-xl border border-border/70 bg-card">
+        <div className="flex items-center gap-3 p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
+          ) : (
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold">{item.label}</div>
+            {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
+          </div>
+          {canBrowse && (
+            <button
+              onClick={() => toggleTeams(item)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Users className="size-3.5" /> Teams
+              <ChevronDown className={`size-3 transition ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+          )}
+          <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} onUnfollow={setConfirmItem} />
+        </div>
+
+        {canBrowse && isOpen && (
+          <div className="border-t border-border/60 bg-secondary/30 p-3">
+            {teamLoading === item.ref ? (
+              <div className="flex justify-center py-4 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+              </div>
+            ) : teams.length === 0 ? (
+              <p className="py-2 text-center text-xs text-muted-foreground">Couldn&apos;t load teams — try Follow for the full league.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Input value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} placeholder="Filter teams…" className="h-8 text-sm" />
+                <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto overscroll-contain">
+                  {filtered.map((t) => (
+                    <div key={t.ref} className="flex items-center gap-2 rounded-lg bg-card px-2 py-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {t.imageUrl ? (
+                        <img src={t.imageUrl} alt="" className="size-6 shrink-0 object-contain" />
+                      ) : (
+                        <span className="size-6 shrink-0" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm">{t.label}</span>
+                      <FollowPill item={t} followed={followedKeys.has(followKey(t.provider, t.ref))} adding={addingKey === followKey(t.provider, t.ref)} onFollow={follow} onUnfollow={setConfirmItem} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="relative">
@@ -188,7 +277,7 @@ export function Discover({
       </div>
 
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {featured ? "Popular to follow" : loading ? "Searching…" : items.length ? "Results" : "No matches"}
+        {featured ? "Everything you can follow" : loading ? "Searching…" : items.length ? "Results" : "No matches"}
       </p>
 
       {loading && !items.length && (
@@ -199,72 +288,18 @@ export function Discover({
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        {items.map((item) => {
-          const canBrowse = !!item.browse;
-          const isOpen = openLeague === item.ref;
-          const teams = teamCache[item.ref] ?? [];
-          const filtered = teamFilter.trim()
-            ? teams.filter((t) => t.label.toLowerCase().includes(teamFilter.trim().toLowerCase()))
-            : teams;
-          return (
-            <div key={followKey(item.provider, item.ref)} className="overflow-hidden rounded-xl border border-border/70 bg-card">
-              <div className="flex items-center gap-3 p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
-                ) : (
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{item.label}</div>
-                  {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
-                </div>
-                {canBrowse && (
-                  <button
-                    onClick={() => toggleTeams(item)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    <Users className="size-3.5" /> Teams
-                    <ChevronDown className={`size-3 transition ${isOpen ? "rotate-180" : ""}`} />
-                  </button>
-                )}
-                <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} onUnfollow={unfollow} />
-              </div>
-
-              {canBrowse && isOpen && (
-                <div className="border-t border-border/60 bg-secondary/30 p-3">
-                  {teamLoading === item.ref ? (
-                    <div className="flex justify-center py-4 text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                    </div>
-                  ) : teams.length === 0 ? (
-                    <p className="py-2 text-center text-xs text-muted-foreground">Couldn&apos;t load teams — try Follow for the full league.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <Input value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} placeholder="Filter teams…" className="h-8 text-sm" />
-                      <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto overscroll-contain">
-                        {filtered.map((t) => (
-                          <div key={t.ref} className="flex items-center gap-2 rounded-lg bg-card px-2 py-1.5">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            {t.imageUrl ? (
-                              <img src={t.imageUrl} alt="" className="size-6 shrink-0 object-contain" />
-                            ) : (
-                              <span className="size-6 shrink-0" />
-                            )}
-                            <span className="min-w-0 flex-1 truncate text-sm">{t.label}</span>
-                            <FollowPill item={t} followed={followedKeys.has(followKey(t.provider, t.ref))} adding={addingKey === followKey(t.provider, t.ref)} onFollow={follow} onUnfollow={unfollow} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+      {featured ? (
+        <div className="flex flex-col gap-5">
+          {groupItems(items).map((g) => (
+            <div key={g.slug} className="flex flex-col gap-2">
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{groupTitle(g.slug)}</p>
+              {g.items.map(renderItem)}
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">{items.map(renderItem)}</div>
+      )}
 
       {/* Add any calendar feed — covers leagues we don't list (e.g. a local league) */}
       {featured && (
@@ -297,6 +332,17 @@ export function Discover({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmItem}
+        onOpenChange={(o) => !o && setConfirmItem(null)}
+        title={confirmItem ? `Unfollow ${confirmItem.label}?` : "Unfollow?"}
+        description="This removes its imported events from your Upcoming and Calendar."
+        confirmLabel="Unfollow"
+        onConfirm={async () => {
+          if (confirmItem) await doUnfollow(confirmItem);
+        }}
+      />
     </div>
   );
 }

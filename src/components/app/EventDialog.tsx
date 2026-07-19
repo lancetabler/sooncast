@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { api, ApiError } from "@/lib/client/api";
 import { REMINDER_PRESETS, reminderLabel } from "@/lib/domain/format";
 import type { ClientCategory, ClientEvent } from "@/lib/client/types";
@@ -63,6 +64,7 @@ export function EventDialog({
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [quick, setQuick] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => setF(initial), [initial]);
 
   function applyQuick() {
@@ -126,7 +128,6 @@ export function EventDialog({
 
   async function remove() {
     if (!event) return;
-    if (!confirm("Delete this event?")) return;
     try {
       await api.deleteEvent(event.id);
       toast.success("Deleted");
@@ -278,7 +279,7 @@ export function EventDialog({
 
         <DialogFooter className="gap-2 sm:justify-between">
           {isEdit ? (
-            <Button variant="ghost" onClick={remove} className="text-destructive hover:text-destructive">
+            <Button variant="ghost" onClick={() => setConfirmDelete(true)} className="text-destructive hover:text-destructive">
               <Trash2 data-icon="inline-start" /> Delete
             </Button>
           ) : (
@@ -289,6 +290,15 @@ export function EventDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this event?"
+        description="It disappears from your Upcoming, Calendar and reminders."
+        confirmLabel="Delete"
+        onConfirm={remove}
+      />
     </Dialog>
   );
 }

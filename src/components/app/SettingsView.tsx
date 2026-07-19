@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog, TextPromptDialog } from "@/components/app/ConfirmDialog";
 import { api, ApiError } from "@/lib/client/api";
 import { enablePush, isStandalone, pushSupported } from "@/lib/client/push";
 import { REMINDER_PRESETS, reminderLabel } from "@/lib/domain/format";
@@ -80,6 +81,10 @@ export function SettingsView({
   const [cpBusy, setCpBusy] = useState(false);
   const [delPw, setDelPw] = useState("");
   const [delBusy, setDelBusy] = useState(false);
+  const [confirmDelAcct, setConfirmDelAcct] = useState(false);
+  const [confirmFollow, setConfirmFollow] = useState<{ id: string; label: string } | null>(null);
+  const [confirmCat, setConfirmCat] = useState<{ id: string; name: string } | null>(null);
+  const [catPromptOpen, setCatPromptOpen] = useState(false);
 
   const timeZones = useMemo<string[]>(() => {
     try {
@@ -141,7 +146,6 @@ export function SettingsView({
   }
   async function deleteAccount() {
     if (!delPw) return toast.error("Enter your password to confirm");
-    if (!confirm("Permanently delete your account and ALL your data? This cannot be undone.")) return;
     setDelBusy(true);
     try {
       await api.deleteAccount({ password: delPw });
@@ -189,8 +193,7 @@ export function SettingsView({
       toast.error(err instanceof ApiError ? err.message : "Sync failed");
     }
   }
-  async function removeFollow(id: string, label: string) {
-    if (!confirm(`Remove ${label} and its imported events?`)) return;
+  async function removeFollow(id: string) {
     await api.deleteFollow(id).catch(() => {});
     onChanged();
   }
@@ -203,20 +206,17 @@ export function SettingsView({
     }
   }
 
-  async function addCategory() {
-    const name = prompt("Category name?");
-    if (!name?.trim()) return;
+  async function addCategory(name: string) {
     const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
     const emoji = EMOJI_CHOICES[Math.floor(Math.random() * EMOJI_CHOICES.length)];
     try {
-      await api.createCategory({ name: name.trim(), color, emoji });
+      await api.createCategory({ name, color, emoji });
       onChanged();
     } catch {
       toast.error("Couldn't add category");
     }
   }
-  async function deleteCategory(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? Its events stay but lose their category.`)) return;
+  async function deleteCategory(id: string) {
     await api.deleteCategory(id).catch(() => {});
     onChanged();
   }
@@ -478,7 +478,7 @@ export function SettingsView({
               <Button size="icon" variant="ghost" onClick={() => syncFollow(f.id, f.label)} aria-label="Sync">
                 <RefreshCw className="size-4" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => removeFollow(f.id, f.label)} aria-label="Remove" className="text-destructive">
+              <Button size="icon" variant="ghost" onClick={() => setConfirmFollow({ id: f.id, label: f.label })} aria-label="Remove" className="text-destructive">
                 <Trash2 className="size-4" />
               </Button>
             </div>
@@ -495,12 +495,12 @@ export function SettingsView({
               </span>
               <span className="text-sm font-medium">{c.name}</span>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => deleteCategory(c.id, c.name)} aria-label="Delete" className="text-destructive">
+            <Button size="icon" variant="ghost" onClick={() => setConfirmCat({ id: c.id, name: c.name })} aria-label="Delete" className="text-destructive">
               <Trash2 className="size-4" />
             </Button>
           </Row>
         ))}
-        <Button variant="secondary" onClick={addCategory} className="justify-start">
+        <Button variant="secondary" onClick={() => setCatPromptOpen(true)} className="justify-start">
           <Plus data-icon="inline-start" /> New category
         </Button>
       </Section>
@@ -551,13 +551,51 @@ export function SettingsView({
           </div>
           <p className="text-xs text-muted-foreground">Permanently removes your account, events, sources and history. This can&apos;t be undone.</p>
           <Input type="password" autoComplete="current-password" value={delPw} onChange={(e) => setDelPw(e.target.value)} placeholder="Confirm your password" />
-          <Button size="sm" variant="destructive" onClick={deleteAccount} disabled={delBusy || !delPw} className="self-start">
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDelAcct(true)} disabled={delBusy || !delPw} className="self-start">
             {delBusy ? "Deleting…" : "Delete my account"}
           </Button>
         </div>
       </Section>
 
       <p className="pt-2 text-center text-xs text-muted-foreground">Radarr · your data is private to your account.</p>
+
+      <ConfirmDialog
+        open={!!confirmFollow}
+        onOpenChange={(o) => !o && setConfirmFollow(null)}
+        title={confirmFollow ? `Remove ${confirmFollow.label}?` : "Remove?"}
+        description="Its imported events disappear from your Upcoming and Calendar."
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (confirmFollow) await removeFollow(confirmFollow.id);
+        }}
+      />
+      <ConfirmDialog
+        open={!!confirmCat}
+        onOpenChange={(o) => !o && setConfirmCat(null)}
+        title={confirmCat ? `Delete "${confirmCat.name}"?` : "Delete?"}
+        description="Its events stay but lose their category."
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (confirmCat) await deleteCategory(confirmCat.id);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmDelAcct}
+        onOpenChange={setConfirmDelAcct}
+        title="Delete your account?"
+        description="Permanently deletes your account and ALL your data. This cannot be undone."
+        confirmLabel="Delete forever"
+        onConfirm={async () => {
+          await deleteAccount();
+        }}
+      />
+      <TextPromptDialog
+        open={catPromptOpen}
+        onOpenChange={setCatPromptOpen}
+        title="New category"
+        placeholder="Category name"
+        onSubmit={addCategory}
+      />
     </div>
   );
 }

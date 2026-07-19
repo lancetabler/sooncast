@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { expandEvent, expandAll, reminderFires, advance } from "./recurrence";
 import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
+import { watchLinks, streamingService } from "./watch";
 import type { TrackEvent } from "./types";
 
 function ev(partial: Partial<TrackEvent>): TrackEvent {
@@ -143,5 +144,29 @@ describe("format", () => {
     expect(groupFor(new Date("2026-07-20T08:00:00"), new Date("2026-07-20T10:00:00"), now)).toBe("Live");
     expect(groupFor(new Date("2026-07-20T20:00:00"), new Date("2026-07-20T22:00:00"), now)).toBe("Today");
     expect(groupFor(new Date("2026-07-21T20:00:00"), new Date("2026-07-21T22:00:00"), now)).toBe("Tomorrow");
+  });
+});
+
+describe("watch links", () => {
+  it("parses networks from a 📺 note and links the ones it knows", () => {
+    const links = watchLinks("📺 FOX, FS1, Mystery Channel");
+    expect(links.map((l) => l.name)).toEqual(["FOX", "FS1", "Mystery Channel"]);
+    expect(links[0].url).toContain("foxsports.com");
+    expect(links[1].url).toContain("foxsports.com");
+    expect(links[2].url).toBeUndefined();
+  });
+
+  it("maps Flo and FanDuel families by prefix", () => {
+    expect(watchLinks("FloRacing")[0].url).toContain("flosports.tv");
+    expect(watchLinks("FanDuel SN DET")[0].url).toContain("fanduelsportsnetwork.com");
+  });
+
+  it("deep-links series to the right OTT service", () => {
+    expect(streamingService({ title: "6 Hours of Fuji", sourceLabel: "FIA WEC" })?.name).toBe("FIAWEC+");
+    expect(streamingService({ title: "Rally Finland", sourceLabel: "WRC" })?.url).toContain("rally.tv");
+    expect(streamingService({ title: "Hungarian Grand Prix", sourceLabel: "Formula 1" })?.name).toBe("F1 TV");
+    // MotoGP rounds are also called "Grand Prix" — must not resolve to F1 TV.
+    expect(streamingService({ title: "MotoGP Grand Prix of Japan" })?.name).toBe("MotoGP VideoPass");
+    expect(streamingService({ title: "Bruins at Rangers", sourceLabel: "NHL" })).toBeNull();
   });
 });

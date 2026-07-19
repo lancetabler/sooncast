@@ -46,6 +46,10 @@ export interface ScoreGame {
   startISO: string;
   home?: ScoreTeam;
   away?: ScoreTeam;
+  /** Set for race/tournament/card events that have no home/away pairing. */
+  name?: string;
+  /** Winner's name for finished races/tournaments. */
+  winner?: string;
   favorite: boolean;
 }
 export interface LeagueOverview {

@@ -55,9 +55,17 @@ async function fetchTeamSchedule(ref: string): Promise<NormalizedEvent[]> {
   );
 }
 
-// Every major league ESPN exposes with both /teams and /scoreboard endpoints.
-// `browse` = small enough team list to pick from inline (pro leagues); college is search-only.
-export const TEAM_LEAGUES: Array<{ ref: string; name: string; slug: string; browse: boolean }> = [
+// Every league ESPN exposes with both /teams and /scoreboard endpoints (all verified live).
+// `browse` = team list loads for an inline favorite-team picker; `college` picks the sublabel copy.
+export interface TeamLeague {
+  ref: string;
+  name: string;
+  slug: string;
+  browse: boolean;
+  college?: boolean;
+}
+
+export const TEAM_LEAGUES: TeamLeague[] = [
   { ref: "hockey/nhl", name: "NHL", slug: "nhl", browse: true },
   { ref: "basketball/nba", name: "NBA", slug: "basketball", browse: true },
   { ref: "basketball/wnba", name: "WNBA", slug: "basketball", browse: true },
@@ -72,18 +80,47 @@ export const TEAM_LEAGUES: Array<{ ref: string; name: string; slug: string; brow
   { ref: "soccer/mex.1", name: "Liga MX", slug: "soccer", browse: true },
   { ref: "soccer/uefa.champions", name: "Champions League", slug: "soccer", browse: true },
   { ref: "soccer/uefa.europa", name: "Europa League", slug: "soccer", browse: true },
+  { ref: "soccer/uefa.europa.conf", name: "Conference League", slug: "soccer", browse: false },
   { ref: "soccer/usa.nwsl", name: "NWSL", slug: "soccer", browse: true },
   { ref: "soccer/eng.2", name: "EFL Championship", slug: "soccer", browse: true },
   { ref: "soccer/ned.1", name: "Eredivisie", slug: "soccer", browse: true },
   { ref: "soccer/por.1", name: "Primeira Liga", slug: "soccer", browse: true },
-  { ref: "football/college-football", name: "College Football", slug: "football", browse: false },
-  { ref: "basketball/mens-college-basketball", name: "NCAA Basketball", slug: "basketball", browse: false },
+  { ref: "soccer/sco.1", name: "Scottish Premiership", slug: "soccer", browse: true },
+  { ref: "soccer/tur.1", name: "Süper Lig", slug: "soccer", browse: true },
+  { ref: "soccer/bra.1", name: "Brasileirão", slug: "soccer", browse: true },
+  { ref: "soccer/arg.1", name: "Argentine Primera", slug: "soccer", browse: true },
+  { ref: "soccer/ksa.1", name: "Saudi Pro League", slug: "soccer", browse: true },
+  { ref: "soccer/jpn.1", name: "J.League", slug: "soccer", browse: true },
+  { ref: "soccer/aus.1", name: "A-League", slug: "soccer", browse: true },
+  { ref: "soccer/eng.w.1", name: "Women's Super League", slug: "soccer", browse: true },
+  { ref: "soccer/eng.fa", name: "FA Cup", slug: "soccer", browse: false },
+  { ref: "soccer/eng.league_cup", name: "Carabao Cup", slug: "soccer", browse: false },
+  { ref: "soccer/conmebol.libertadores", name: "Copa Libertadores", slug: "soccer", browse: false },
+  { ref: "soccer/concacaf.champions_cup", name: "CONCACAF Champions Cup", slug: "soccer", browse: false },
+  { ref: "australian-football/afl", name: "AFL — Aussie Rules", slug: "afl", browse: true },
+  { ref: "rugby-league/3", name: "Rugby League (NRL)", slug: "rugby", browse: true },
+  { ref: "rugby/267979", name: "Premiership Rugby", slug: "rugby", browse: true },
+  { ref: "rugby/242041", name: "Super Rugby Pacific", slug: "rugby", browse: true },
+  { ref: "rugby/270557", name: "United Rugby Championship", slug: "rugby", browse: true },
+  { ref: "rugby/180659", name: "Six Nations", slug: "rugby", browse: true },
+  { ref: "lacrosse/pll", name: "Premier Lacrosse League", slug: "lacrosse", browse: true },
+  { ref: "football/college-football", name: "College Football", slug: "football", browse: true, college: true },
+  { ref: "basketball/mens-college-basketball", name: "College Basketball (M)", slug: "basketball", browse: true, college: true },
+  { ref: "basketball/womens-college-basketball", name: "College Basketball (W)", slug: "basketball", browse: true, college: true },
+  { ref: "baseball/college-baseball", name: "College Baseball", slug: "baseball", browse: true, college: true },
+  { ref: "baseball/college-softball", name: "College Softball", slug: "baseball", browse: true, college: true },
+  { ref: "hockey/mens-college-hockey", name: "College Hockey (M)", slug: "nhl", browse: true, college: true },
+  { ref: "hockey/womens-college-hockey", name: "College Hockey (W)", slug: "nhl", browse: true, college: true },
+  { ref: "volleyball/womens-college-volleyball", name: "College Volleyball (W)", slug: "volleyball", browse: true, college: true },
+  { ref: "volleyball/mens-college-volleyball", name: "College Volleyball (M)", slug: "volleyball", browse: true, college: true },
+  { ref: "lacrosse/mens-college-lacrosse", name: "College Lacrosse (M)", slug: "lacrosse", browse: false, college: true },
 ];
 
 // Leagues searched by team name on every keystroke (curated subset so search stays fast).
 const SEARCH_LEAGUE_REFS = new Set([
   "hockey/nhl", "basketball/nba", "basketball/wnba", "football/nfl", "baseball/mlb",
   "soccer/eng.1", "soccer/esp.1", "soccer/ger.1", "soccer/ita.1", "soccer/usa.1", "soccer/uefa.champions",
+  "football/college-football", "basketball/mens-college-basketball",
 ]);
 const SEARCH_LEAGUES = TEAM_LEAGUES.filter((l) => SEARCH_LEAGUE_REFS.has(l.ref));
 
@@ -168,7 +205,7 @@ export const espn: SourceProvider = {
   },
 };
 
-// Curated racing & individual-sport series — a great "follow the whole calendar" experience.
+// Curated racing & individual/event-sport series — a great "follow the whole calendar" experience.
 // (Team leagues live in TEAM_LEAGUES; F1 is handled by the jolpica provider.)
 export const ESPN_CATALOG: CatalogItem[] = [
   { provider: "espn", ref: "racing/irl", label: "IndyCar", sublabel: "Full season", categorySlug: "racing" },
@@ -177,4 +214,13 @@ export const ESPN_CATALOG: CatalogItem[] = [
   { provider: "espn", ref: "racing/nascar-truck", label: "NASCAR Truck Series", sublabel: "Full season", categorySlug: "racing" },
   { provider: "espn", ref: "tennis/atp", label: "Tennis — ATP", sublabel: "Upcoming tournaments", categorySlug: "tennis" },
   { provider: "espn", ref: "tennis/wta", label: "Tennis — WTA", sublabel: "Upcoming tournaments", categorySlug: "tennis" },
+  { provider: "espn", ref: "golf/pga", label: "PGA Tour", sublabel: "Every tournament", categorySlug: "golf" },
+  { provider: "espn", ref: "golf/lpga", label: "LPGA Tour", sublabel: "Every tournament", categorySlug: "golf" },
+  { provider: "espn", ref: "golf/eur", label: "DP World Tour", sublabel: "Every tournament", categorySlug: "golf" },
+  { provider: "espn", ref: "golf/liv", label: "LIV Golf", sublabel: "Every tournament", categorySlug: "golf" },
+  { provider: "espn", ref: "golf/champions-tour", label: "PGA Tour Champions", sublabel: "Every tournament", categorySlug: "golf" },
+  { provider: "espn", ref: "mma/ufc", label: "UFC", sublabel: "Every card", categorySlug: "combat" },
+  { provider: "espn", ref: "mma/pfl", label: "PFL", sublabel: "Every card", categorySlug: "combat" },
+  { provider: "espn", ref: "cricket/8048", label: "IPL Cricket", sublabel: "Full season", categorySlug: "cricket" },
+  { provider: "espn", ref: "cricket/8044", label: "Big Bash League", sublabel: "Full season", categorySlug: "cricket" },
 ];
