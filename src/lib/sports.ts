@@ -18,11 +18,27 @@ export interface StandingRow {
   points?: string;
   highlight: boolean;
 }
+export interface ScoreTeam {
+  abbr: string;
+  name: string;
+  score: string;
+  logo?: string;
+}
+export interface ScoreGame {
+  id: string;
+  state: "pre" | "in" | "post";
+  detail: string; // e.g. "Final", "7:00 PM", "3rd 4:12"
+  startISO: string;
+  home?: ScoreTeam;
+  away?: ScoreTeam;
+  favorite: boolean;
+}
 export interface LeagueOverview {
   ref: string;
   label: string;
   news: NewsItem[];
   standings: StandingRow[];
+  scores: ScoreGame[];
 }
 
 const LEAGUE_NAMES: Record<string, string> = {
@@ -83,6 +99,56 @@ async function fetchStandings(ref: string, favorites: Set<string>): Promise<Stan
   }
 }
 
+function ymd(d: Date) {
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+async function fetchScores(ref: string, favorites: Set<string>): Promise<ScoreGame[]> {
+  try {
+    const from = new Date(Date.now() - 2 * 86400_000);
+    const to = new Date(Date.now() + 4 * 86400_000);
+    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=100`);
+    const teamOf = (c: any): ScoreTeam | undefined =>
+      c
+        ? {
+            abbr: c.team?.abbreviation ?? c.team?.shortDisplayName ?? "",
+            name: c.team?.displayName ?? c.team?.shortDisplayName ?? "",
+            score: c.score ?? "",
+            logo: c.team?.logo ?? c.team?.logos?.[0]?.href,
+          }
+        : undefined;
+
+    const games: ScoreGame[] = (data?.events || []).map((ev: any) => {
+      const comp = ev?.competitions?.[0];
+      const st = ev?.status?.type;
+      const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+      const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+      return {
+        id: String(ev?.id ?? ev?.uid ?? ev?.date ?? ""),
+        state: (st?.state as ScoreGame["state"]) ?? "pre",
+        detail: st?.shortDetail ?? "",
+        startISO: ev?.date ?? "",
+        home: teamOf(home),
+        away: teamOf(away),
+        favorite: favorites.has(home?.team?.displayName ?? "\0") || favorites.has(away?.team?.displayName ?? "\0"),
+      };
+    });
+
+    // Live games first, then upcoming (soonest), then recent finals; favorites float up within a group.
+    const rank = (g: ScoreGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
+    games.sort((a, b) => {
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      const ta = new Date(a.startISO).getTime();
+      const tb = new Date(b.startISO).getTime();
+      return rank(a) === 2 ? tb - ta : ta - tb; // finals newest-first, others soonest-first
+    });
+    return games.slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchF1Standings(): Promise<StandingRow[]> {
   try {
     const data = await fetchJSON<any>("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
@@ -104,13 +170,17 @@ export async function getSportsOverview(leagueRefs: string[], favoriteTeams: Set
   const uniq = [...new Set(leagueRefs)].slice(0, 6);
   const leagues = await Promise.all(
     uniq.map(async (ref) => {
-      const [news, standings] = await Promise.all([fetchNews(ref), fetchStandings(ref, favoriteTeams)]);
-      return { ref, label: labelFor(ref), news, standings };
+      const [news, standings, scores] = await Promise.all([
+        fetchNews(ref),
+        fetchStandings(ref, favoriteTeams),
+        fetchScores(ref, favoriteTeams),
+      ]);
+      return { ref, label: labelFor(ref), news, standings, scores };
     })
   );
   if (includeF1) {
     const [news, standings] = await Promise.all([fetchNews("racing/f1"), fetchF1Standings()]);
-    leagues.unshift({ ref: "racing/f1", label: "Formula 1", news, standings });
+    leagues.unshift({ ref: "racing/f1", label: "Formula 1", news, standings, scores: [] });
   }
   return leagues;
 }

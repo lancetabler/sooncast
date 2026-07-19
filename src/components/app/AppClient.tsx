@@ -138,6 +138,20 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     return state.categories.filter((c) => ids.has(c.id));
   }, [state.events, state.categories]);
 
+  // Names of teams the user follows directly — used to highlight their games in a full-season feed.
+  const favoriteTeams = useMemo(
+    () => state.follows.filter((f) => f.ref.includes("/teams/")).map((f) => f.label.toLowerCase()).filter(Boolean),
+    [state.follows]
+  );
+  const isFavorite = useCallback(
+    (title: string) => {
+      if (!favoriteTeams.length) return false;
+      const t = title.toLowerCase();
+      return favoriteTeams.some((name) => t.includes(name));
+    },
+    [favoriteTeams]
+  );
+
   const nextUp = useMemo(() => {
     for (const g of ["Today", "Tomorrow", "This week", "Later"] as GroupLabel[]) {
       const items = upcoming.get(g);
@@ -283,6 +297,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
                           reminders={occ.event.reminders.length}
                           live={liveMap[occ.event.id]}
                           clash={clashKeys.has(occ.key)}
+                          favorite={isFavorite(occ.event.title)}
                           onOpen={() => openEvent(occ)}
                         />
                       ))}
@@ -298,7 +313,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
           <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} live={liveMap} onOpen={openEvent} />
         )}
         {view === "scores" && <ScoresView />}
-        {view === "discover" && <Discover categories={state.categories} onChanged={refresh} />}
+        {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}
         {view === "settings" && (
           <SettingsView state={state} onChanged={refresh} onLogout={logout} />
         )}

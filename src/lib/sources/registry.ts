@@ -5,6 +5,8 @@ import { icsfeed } from "./icsfeed";
 import { tmdb } from "./tmdb";
 import type { CatalogItem, NormalizedEvent, SourceProvider } from "./types";
 
+export { leagueTeams } from "./espn";
+
 const PROVIDERS: Record<string, SourceProvider> = {
   espn,
   jolpica,
@@ -31,11 +33,29 @@ const ICS_FEEDS: CatalogItem[] = [
   { provider: "ics", ref: "https://calendar.google.com/calendar/ical/hlskhf7l8ce7btind39bb9kf1o%40group.calendar.google.com/public/basic.ics", label: "IndyCar", sublabel: "Full season", categorySlug: "racing" },
 ];
 
+// Follow a whole league's season. Pick a team from any of these to just track your club.
+const LEAGUE_FOLLOWS: CatalogItem[] = [
+  { provider: "espn", ref: "football/nfl", label: "NFL", sublabel: "Full season — pick your team", categorySlug: "football", browse: true },
+  { provider: "espn", ref: "basketball/nba", label: "NBA", sublabel: "Full season — pick your team", categorySlug: "basketball", browse: true },
+  { provider: "espn", ref: "baseball/mlb", label: "MLB", sublabel: "Full season — pick your team", categorySlug: "baseball", browse: true },
+  { provider: "espn", ref: "hockey/nhl", label: "NHL", sublabel: "Full season — pick your team", categorySlug: "nhl", browse: true },
+  { provider: "espn", ref: "basketball/wnba", label: "WNBA", sublabel: "Full season — pick your team", categorySlug: "basketball", browse: true },
+  { provider: "espn", ref: "soccer/eng.1", label: "Premier League", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/esp.1", label: "La Liga", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/ger.1", label: "Bundesliga", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/ita.1", label: "Serie A", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/usa.1", label: "MLS", sublabel: "Full season — pick your team", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "soccer/uefa.champions", label: "Champions League", sublabel: "Every fixture", categorySlug: "soccer", browse: true },
+  { provider: "espn", ref: "football/college-football", label: "College Football", sublabel: "Search your school's team", categorySlug: "football" },
+  { provider: "espn", ref: "basketball/mens-college-basketball", label: "NCAA Basketball", sublabel: "Search your school's team", categorySlug: "basketball" },
+];
+
 export function featuredCatalog(): CatalogItem[] {
   return [
     { provider: "jolpica", ref: "current", label: "Formula 1", sublabel: "Full season — races, quali & sprints", categorySlug: "f1" },
+    ...LEAGUE_FOLLOWS,
     ...ICS_FEEDS,
-    ...ESPN_CATALOG.filter((c) => c.ref !== "racing/f1"),
+    ...ESPN_CATALOG,
     { provider: "tmdb", ref: "upcoming", label: "Movies — upcoming releases", sublabel: "New theatrical releases", categorySlug: "screen" },
   ];
 }

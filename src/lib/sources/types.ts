@@ -18,6 +18,7 @@ export interface CatalogItem {
   sublabel?: string;
   categorySlug: string;
   imageUrl?: string;
+  browse?: boolean; // league whose teams can be browsed for a favorite-team follow
 }
 
 export interface SourceProvider {

@@ -9,6 +9,7 @@ export interface CatalogItem {
   sublabel?: string;
   categorySlug: string;
   imageUrl?: string;
+  browse?: boolean;
 }
 
 export interface LiveStatus {
@@ -32,9 +33,25 @@ export interface StandingRow {
   points?: string;
   highlight: boolean;
 }
+export interface ScoreTeam {
+  abbr: string;
+  name: string;
+  score: string;
+  logo?: string;
+}
+export interface ScoreGame {
+  id: string;
+  state: "pre" | "in" | "post";
+  detail: string;
+  startISO: string;
+  home?: ScoreTeam;
+  away?: ScoreTeam;
+  favorite: boolean;
+}
 export interface LeagueOverview {
   ref: string;
   label: string;
   news: NewsItem[];
   standings: StandingRow[];
+  scores: ScoreGame[];
 }

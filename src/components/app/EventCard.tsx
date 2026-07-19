@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, MapPin, Repeat } from "lucide-react";
+import { Bell, MapPin, Repeat, Star } from "lucide-react";
 import type { Occurrence } from "@/lib/domain/types";
 import type { ClientCategory, LiveStatus } from "@/lib/client/types";
 import { humanCountdown, fmtTime } from "@/lib/domain/format";
@@ -20,6 +20,7 @@ export function EventCard({
   reminders,
   live,
   clash,
+  favorite,
   onOpen,
 }: {
   occ: Occurrence;
@@ -28,6 +29,7 @@ export function EventCard({
   reminders: number;
   live?: LiveStatus;
   clash?: boolean;
+  favorite?: boolean;
   onOpen: () => void;
 }) {
   const color = category?.color ?? "var(--primary)";
@@ -69,7 +71,7 @@ export function EventCard({
   return (
     <button
       onClick={onOpen}
-      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""}`}
+      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""} ${favorite ? "ring-1 ring-primary/50" : ""}`}
     >
       <span className="w-1 shrink-0 rounded-full" style={{ background: color }} />
       <div className="flex w-14 shrink-0 flex-col items-center justify-center">
@@ -81,6 +83,7 @@ export function EventCard({
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
         <span className="flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color }}>
           {category?.emoji} {category?.name ?? "Event"}
+          {favorite && <Star className="size-3 fill-current text-primary" />}
           {recurring && <Repeat className="size-3 opacity-70" />}
           {reminders > 0 && <Bell className="size-3 opacity-70" />}
         </span>

@@ -41,6 +41,8 @@ export const api = {
 
   searchSources: (q: string) =>
     req<{ items: CatalogItem[]; featured: boolean }>(`/api/sources/search?q=${encodeURIComponent(q)}`),
+  leagueTeams: (ref: string) =>
+    req<{ items: CatalogItem[] }>(`/api/sources/teams?ref=${encodeURIComponent(ref)}`),
   addFollow: (b: { provider: string; ref: string; label: string; categorySlug?: string | null }) =>
     req<{ result: { added: number; updated: number; skippedForLimit: number } }>("/api/follows", {
       method: "POST",
