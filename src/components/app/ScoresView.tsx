@@ -132,6 +132,7 @@ export function ScoresView() {
     () => (scoresCache && Date.now() - scoresCache.at < 90_000 ? scoresCache.leagues : null)
   );
   const [loading, setLoading] = useState(!leagues);
+  const [live, setLive] = useState(false);
   const [tab, setTab] = useState<ScoresTab>(lastTab);
 
   function switchTab(t: ScoresTab) {
@@ -139,23 +140,40 @@ export function ScoresView() {
     setTab(t);
   }
 
+  // Poll while the tab is open. Fast (30s) when anything is live, gentle (90s) otherwise.
   useEffect(() => {
     let active = true;
-    api
-      .sportsOverview()
-      .then((r) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const anyLive = (list: LeagueOverview[]) =>
+      list.some((l) => l.live || l.scores.some((s) => s.state === "in"));
+
+    const load = async () => {
+      try {
+        const r = await api.sportsOverview();
         if (!active) return;
         scoresCache = { at: Date.now(), leagues: r.leagues };
         setLeagues(r.leagues);
-      })
-      .catch(() => {
-        if (active) setLeagues((prev) => prev ?? []);
-      })
-      .finally(() => {
+        setLive(anyLive(r.leagues));
+        schedule(anyLive(r.leagues));
+      } catch {
+        if (active) {
+          setLeagues((prev) => prev ?? []);
+          schedule(false);
+        }
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    };
+    const schedule = (fast: boolean) => {
+      if (!active) return;
+      timer = setTimeout(load, fast ? 30_000 : 90_000);
+    };
+
+    load();
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -203,6 +221,11 @@ export function ScoresView() {
             </button>
           ))}
         </div>
+        {live && (
+          <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-400">
+            <Radio className="size-3 animate-pulse" /> Live — auto-updating
+          </div>
+        )}
       </div>
 
       {tab === "scores" &&

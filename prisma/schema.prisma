@@ -103,7 +103,8 @@ model Follow {
   categorySlug String?
   params     String   @default("{}") // JSON
   lastSync   DateTime?
-  muted      Boolean  @default(false) // suppress notifications from this source
+  muted      Boolean  @default(false) // suppress ALL notifications from this source
+  scoreAlerts Boolean @default(true)  // live score-change & final-result pushes (team sports)
   createdAt  DateTime @default(now())
 
   events Event[]

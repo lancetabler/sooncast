@@ -22,6 +22,7 @@ import { ProfileView } from "./ProfileView";
 import { CommandPalette } from "./CommandPalette";
 import { Onboarding } from "./Onboarding";
 import { InstallPrompt } from "./InstallPrompt";
+import { TextPromptDialog } from "./ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -72,6 +73,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [showOnboard, setShowOnboard] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
   const [savedViews, setSavedViews] = useState<{ id: string; name: string; categoryId: string; search: string }[]>([]);
 
@@ -87,9 +89,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     setSavedViews(v);
     localStorage.setItem("radarr_views", JSON.stringify(v));
   }
-  function saveCurrentView() {
-    const name = prompt("Name this view:");
-    if (!name?.trim()) return;
+  function saveCurrentView(name: string) {
     persistViews([...savedViews, { id: Math.random().toString(36).slice(2), name: name.trim(), categoryId: filter, search }]);
   }
   function applyView(v: { categoryId: string; search: string }) {
@@ -351,7 +351,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
           ))}
           {(filter !== "all" || search.trim() !== "") && !savedViews.some((v) => v.categoryId === filter && v.search === search) && (
             <button
-              onClick={saveCurrentView}
+              onClick={() => setSaveViewOpen(true)}
               className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3" /> Save view
@@ -472,6 +472,14 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         onNew={newEvent}
         onSettings={() => setSettingsOpen(true)}
         onOpenEvent={(ev) => setDetail(ev)}
+      />
+      <TextPromptDialog
+        open={saveViewOpen}
+        onOpenChange={setSaveViewOpen}
+        title="Save this view"
+        placeholder="Name this view"
+        confirmLabel="Save"
+        onSubmit={saveCurrentView}
       />
       <InstallPrompt />
       <Onboarding

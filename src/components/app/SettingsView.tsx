@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   BellRing, BellOff, CalendarClock, Copy, LogOut, RefreshCw, Trash2, Plus, Download, Upload, Save,
-  Clock, Globe, Activity, KeyRound, CheckCircle2, AlertTriangle, ExternalLink,
+  Clock, Globe, Activity, KeyRound, CheckCircle2, AlertTriangle, ExternalLink, Zap, ZapOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ function ago(iso: string | null): string {
 function jobHealthy(name: string, iso: string | null): boolean {
   if (!iso) return false;
   const age = Date.now() - new Date(iso).getTime();
-  return name === "reminders" ? age < 10 * 60_000 : age < 36 * 3600_000;
+  return name === "reminders" || name === "tick" ? age < 10 * 60_000 : age < 36 * 3600_000;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -205,6 +205,15 @@ export function SettingsView({
       toast.error("Couldn't update");
     }
   }
+  async function toggleScoreAlerts(id: string, on: boolean) {
+    try {
+      await api.updateFollow(id, { scoreAlerts: !on });
+      toast.success(on ? "Score alerts off — no spoilers" : "Score alerts on");
+      onChanged();
+    } catch {
+      toast.error("Couldn't update");
+    }
+  }
 
   async function addCategory(name: string) {
     const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
@@ -323,9 +332,10 @@ export function SettingsView({
             <Activity className="size-4 text-primary" /> Background jobs
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            These keep reminders firing on time and schedules fresh. Point a free scheduler
+            Radarr is serverless, so a scheduler has to wake it to send notifications.
+            Easiest setup: point <b>one</b> free every-minute pinger
             (<a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="text-primary">cron-job.org</a>)
-            at each URL below at the suggested interval.
+            at the <b>“Everything (one pinger)”</b> URL — it fires reminders, the daily digest and schedule sync on its own.
           </p>
           {!cron ? (
             <div className="py-2 text-xs text-muted-foreground">Checking…</div>
@@ -472,6 +482,18 @@ export function SettingsView({
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
+              {f.ref.includes("/teams/") && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => toggleScoreAlerts(f.id, f.scoreAlerts)}
+                  aria-label={f.scoreAlerts ? "Turn off score alerts" : "Turn on score alerts"}
+                  title={f.scoreAlerts ? "Score alerts on — tap to avoid spoilers" : "Score alerts off"}
+                  className={f.scoreAlerts ? "text-primary" : "text-muted-foreground"}
+                >
+                  {f.scoreAlerts ? <Zap className="size-4" /> : <ZapOff className="size-4" />}
+                </Button>
+              )}
               <Button size="icon" variant="ghost" onClick={() => toggleMute(f.id, f.muted)} aria-label={f.muted ? "Unmute" : "Mute"} className={f.muted ? "text-amber-400" : ""}>
                 {f.muted ? <BellOff className="size-4" /> : <BellRing className="size-4" />}
               </Button>

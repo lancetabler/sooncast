@@ -1,11 +1,13 @@
 /* Radarr service worker — offline shell + Web Push.
    Handles both classic push payloads and Declarative Web Push (iOS 18.4+),
    where the browser may render the notification without us. */
-const CACHE = "radarr-v1";
-const SHELL = ["/", "/icon.svg", "/manifest.webmanifest"];
+const CACHE = "radarr-v2";
+const PRECACHE = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()).catch(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -14,21 +16,60 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// Put a copy in the cache, best-effort.
+async function cachePut(req, res) {
+  try {
+    const c = await caches.open(CACHE);
+    await c.put(req, res.clone());
+  } catch {
+    /* quota / opaque — ignore */
+  }
+  return res;
+}
+
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
-  // Network-first for pages & API; cache-first only for static shell assets.
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // App navigations: network-first, fall back to the cached shell when offline.
+  if (req.mode === "navigate") {
+    e.respondWith(
+      fetch(req)
+        .then((res) => cachePut(req, res))
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
+    );
+    return;
+  }
+
+  // Last-known state: network-first, but keep a copy so the app opens populated offline.
+  if (url.pathname === "/api/state") {
+    e.respondWith(
+      fetch(req)
+        .then((res) => cachePut(req, res))
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Other API calls are always live (no caching).
   if (url.pathname.startsWith("/api/")) return;
-  if (SHELL.includes(url.pathname) || url.pathname === "/icon.svg") {
-    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+
+  // Static assets (Next build output, icons): cache-first, refresh in the background.
+  if (url.pathname.startsWith("/_next/") || PRECACHE.includes(url.pathname) || url.pathname === "/icon.svg") {
+    e.respondWith(
+      caches.match(req).then((hit) => {
+        const net = fetch(req).then((res) => cachePut(req, res)).catch(() => hit);
+        return hit || net;
+      })
+    );
   }
 });
 
 self.addEventListener("push", (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch { data = { title: "Radar", body: e.data ? e.data.text() : "" }; }
-  // Declarative payloads carry a { notification: {...} } object; the browser
-  // may already show it, but we also show it for classic-push browsers.
   const n = data.notification || data;
   const title = n.title || "Radarr";
   const options = {
