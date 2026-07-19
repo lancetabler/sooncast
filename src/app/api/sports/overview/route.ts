@@ -10,10 +10,11 @@ export async function GET() {
   if (isResponse(user)) return user;
 
   const follows = await prisma.follow.findMany({ where: { userId: user.id } });
-  // Every ESPN follow maps to a league section — team sports, racing, tennis, golf, MMA, cricket, …
-  const leagueRefs = follows
-    .filter((f) => f.provider === "espn")
-    .map((f) => f.ref.split("/teams/")[0]);
+  // Every ESPN/MotoGP follow maps to a league section — team sports, racing, tennis, golf, MMA, cricket, …
+  const leagueRefs = [
+    ...follows.filter((f) => f.provider === "espn").map((f) => f.ref.split("/teams/")[0]),
+    ...follows.filter((f) => f.provider === "motogp").map((f) => `motogp:${f.ref}`),
+  ];
   const favorites = new Set(follows.filter((f) => f.ref.includes("/teams/")).map((f) => f.label));
   const includeF1 = follows.some((f) => f.provider === "jolpica" || (f.provider === "espn" && f.ref.startsWith("racing/f1")));
 

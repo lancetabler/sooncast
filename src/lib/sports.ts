@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { fetchJSON } from "@/lib/sources/types";
 import { TEAM_LEAGUES, ESPN_CATALOG } from "@/lib/sources/espn";
+import { MOTOGP_CLASSES, classRaces, motogpStandings } from "@/lib/sources/motogp";
 
 const SITE = "https://site.api.espn.com/apis/site/v2/sports";
 const WEB = "https://site.web.api.espn.com/apis/v2/sports";
@@ -38,12 +38,23 @@ export interface ScoreGame {
   winner?: string;
   favorite: boolean;
 }
+export interface LiveBoardRow {
+  pos: number;
+  name: string;
+  detail?: string;
+}
+/** Real-time running order (OpenF1 / NASCAR live feed) while a session is on track. */
+export interface LiveBoard {
+  title: string;
+  rows: LiveBoardRow[];
+}
 export interface LeagueOverview {
   ref: string;
   label: string;
   news: NewsItem[];
   standings: StandingRow[];
   scores: ScoreGame[];
+  live?: LiveBoard;
 }
 
 // Labels come from the catalogs (single source of truth) with a few extras for refs
@@ -218,6 +229,135 @@ async function fetchEventCards(ref: string): Promise<ScoreGame[]> {
   }
 }
 
+// ---- Live leaderboards (free, no-key feeds; fetched with cache disabled) ----
+
+// OpenF1: real-time F1 running order whenever a session (practice/quali/sprint/race) is live.
+async function fetchF1LiveBoard(): Promise<LiveBoard | null> {
+  try {
+    const year = new Date().getUTCFullYear();
+    const sessions = await fetchJSON<any[]>(`https://api.openf1.org/v1/sessions?year=${year}`);
+    const now = Date.now();
+    const live = (sessions || []).find((s) => {
+      const a = new Date(s?.date_start).getTime() - 10 * 60_000;
+      const b = new Date(s?.date_end).getTime() + 15 * 60_000;
+      return Number.isFinite(a) && Number.isFinite(b) && now >= a && now <= b;
+    });
+    if (!live) return null;
+    const [drivers, positions] = await Promise.all([
+      fetchJSON<any[]>(`https://api.openf1.org/v1/drivers?session_key=${live.session_key}`, 12000, 0),
+      fetchJSON<any[]>(`https://api.openf1.org/v1/position?session_key=${live.session_key}`, 12000, 0),
+    ]);
+    const nameBy = new Map((drivers || []).map((d) => [d.driver_number, d.broadcast_name || d.full_name]));
+    const teamBy = new Map((drivers || []).map((d) => [d.driver_number, d.team_name]));
+    const latest = new Map<number, any>();
+    for (const p of positions || []) {
+      const prev = latest.get(p.driver_number);
+      if (!prev || new Date(p.date) >= new Date(prev.date)) latest.set(p.driver_number, p);
+    }
+    const rows: LiveBoardRow[] = [...latest.values()]
+      .sort((a, b) => a.position - b.position)
+      .slice(0, 20)
+      .map((p) => ({
+        pos: p.position,
+        name: String(nameBy.get(p.driver_number) ?? `#${p.driver_number}`),
+        detail: teamBy.get(p.driver_number) || undefined,
+      }));
+    if (!rows.length) return null;
+    return { title: `${live.session_name ?? "Session"} — ${live.location ?? ""}`.trim(), rows };
+  } catch {
+    return null;
+  }
+}
+
+// NASCAR's own live feed: one JSON for whichever national series is on track right now.
+const NASCAR_SERIES: Record<string, number> = {
+  "racing/nascar-premier": 1,
+  "racing/nascar-secondary": 2,
+  "racing/nascar-truck": 3,
+};
+const NASCAR_FLAGS: Record<number, string> = { 1: "🟢", 2: "🟡", 3: "🔴", 4: "🏁" };
+
+/** Format a NASCAR delta: seconds behind leader, or laps down when negative. */
+export function nascarDelta(delta: unknown): string {
+  const d = Number(delta);
+  if (!Number.isFinite(d) || d === 0) return "";
+  if (d < 0) {
+    const laps = Math.abs(Math.round(d));
+    return `${laps} lap${laps === 1 ? "" : "s"} down`;
+  }
+  return `+${d.toFixed(1)}s`;
+}
+
+async function fetchNascarLiveBoard(ref: string): Promise<LiveBoard | null> {
+  const series = NASCAR_SERIES[ref];
+  if (!series) return null;
+  try {
+    const data = await fetchJSON<any>("https://cf.nascar.com/live/feeds/live-feed.json", 8000, 0);
+    if (Number(data?.series_id) !== series) return null;
+    const lap = Number(data?.lap_number ?? 0);
+    const togo = Number(data?.laps_to_go ?? 0);
+    if (!(lap >= 1 && togo > 0)) return null;
+    const rows: LiveBoardRow[] = (data?.vehicles || [])
+      .filter((v: any) => Number(v?.running_position) > 0)
+      .sort((a: any, b: any) => a.running_position - b.running_position)
+      .slice(0, 12)
+      .map((v: any) => ({
+        pos: Number(v.running_position),
+        name: String(v?.driver?.full_name ?? "—").replace(/[*#]|\(i\)/g, "").trim(),
+        detail: v.running_position === 1 ? "Leader" : nascarDelta(v?.delta) || undefined,
+      }));
+    if (!rows.length) return null;
+    const flag = NASCAR_FLAGS[Number(data?.flag_state)] ?? "";
+    return {
+      title: `${flag ? `${flag} ` : ""}${data?.run_name ?? "Race"} — Lap ${lap}/${data?.laps_in_race ?? "?"}`,
+      rows,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ---- MotoGP (own public API — see sources/motogp.ts) ----
+
+async function motogpLeague(cls: string): Promise<LeagueOverview> {
+  const label = MOTOGP_CLASSES[cls] ?? "MotoGP";
+  const now = Date.now();
+  const [standingRows, races] = await Promise.all([
+    motogpStandings(cls).catch(() => []),
+    classRaces(cls).catch(() => []),
+  ]);
+  const standings: StandingRow[] = standingRows.map((r) => ({
+    rank: r.rank,
+    team: r.rider,
+    record: r.team,
+    points: r.points,
+    highlight: false,
+  }));
+  const scores: ScoreGame[] = races
+    .filter((r) => {
+      const t = new Date(r.start).getTime();
+      return t >= now - 8 * 86400_000 && t <= now + 35 * 86400_000;
+    })
+    .map((r) => {
+      const t = new Date(r.start).getTime();
+      const state: ScoreGame["state"] = now < t ? "pre" : now < t + 2 * 3600_000 ? "in" : "post";
+      return {
+        id: r.id,
+        state,
+        detail:
+          state === "post"
+            ? "Finished"
+            : new Date(r.start).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+        startISO: r.start,
+        name: r.title,
+        favorite: false,
+      };
+    })
+    .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime())
+    .slice(0, 6);
+  return { ref: `motogp/${cls}`, label, news: [], standings, scores };
+}
+
 async function fetchF1Standings(): Promise<StandingRow[]> {
   try {
     const data = await fetchJSON<any>("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
@@ -235,18 +375,25 @@ async function fetchF1Standings(): Promise<StandingRow[]> {
 }
 
 async function buildLeague(ref: string, favorites: Set<string>): Promise<LeagueOverview> {
+  if (ref.startsWith("motogp:")) return motogpLeague(ref.slice("motogp:".length));
   const kind = kindOf(ref);
   if (ref === "racing/f1") {
     // Jolpica has the richer championship table; ESPN still supplies news + race cards.
-    const [news, standings, scores] = await Promise.all([fetchNews(ref), fetchF1Standings(), fetchEventCards(ref)]);
-    return { ref, label: "Formula 1", news, standings, scores };
+    const [news, standings, scores, live] = await Promise.all([
+      fetchNews(ref),
+      fetchF1Standings(),
+      fetchEventCards(ref),
+      fetchF1LiveBoard(),
+    ]);
+    return { ref, label: "Formula 1", news, standings, scores, live: live ?? undefined };
   }
-  const [news, standings, scores] = await Promise.all([
+  const [news, standings, scores, live] = await Promise.all([
     fetchNews(ref),
     kind === "tennis" ? fetchRankings(ref) : kind === "event" ? Promise.resolve([]) : fetchStandings(ref, favorites),
     kind === "team" ? fetchScores(ref, favorites) : kind === "tennis" ? Promise.resolve([]) : fetchEventCards(ref),
+    ref in NASCAR_SERIES ? fetchNascarLiveBoard(ref) : Promise.resolve(null),
   ]);
-  return { ref, label: labelFor(ref), news, standings, scores };
+  return { ref, label: labelFor(ref), news, standings, scores, live: live ?? undefined };
 }
 
 /** Build the Scores overview for every league the user follows (team, racing, tennis, golf, MMA, …). */

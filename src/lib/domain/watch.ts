@@ -57,6 +57,7 @@ const NETWORK_URLS: Record<string, string> = {
   "mls season pass": "https://tv.apple.com",
   netflix: "https://www.netflix.com",
   dazn: "https://www.dazn.com",
+  "motogp videopass": "https://www.motogp.com/en/videopass",
   fubo: "https://www.fubo.tv",
   willow: "https://www.willow.tv",
   "willow tv": "https://www.willow.tv",

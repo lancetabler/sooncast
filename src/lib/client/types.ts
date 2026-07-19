@@ -52,12 +52,23 @@ export interface ScoreGame {
   winner?: string;
   favorite: boolean;
 }
+export interface LiveBoardRow {
+  pos: number;
+  name: string;
+  detail?: string;
+}
+/** Real-time running order (OpenF1 / NASCAR live feed) while a session is on track. */
+export interface LiveBoard {
+  title: string;
+  rows: LiveBoardRow[];
+}
 export interface LeagueOverview {
   ref: string;
   label: string;
   news: NewsItem[];
   standings: StandingRow[];
   scores: ScoreGame[];
+  live?: LiveBoard;
 }
 
 export interface CronJobStatus {

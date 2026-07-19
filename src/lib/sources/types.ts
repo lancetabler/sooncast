@@ -30,15 +30,15 @@ export interface SourceProvider {
   search?(query: string): Promise<CatalogItem[]>;
 }
 
-export async function fetchJSON<T = unknown>(url: string, ms = 12000): Promise<T> {
+/** revalidateSec 0 = live data, never cached; otherwise Next caches the fetch briefly. */
+export async function fetchJSON<T = unknown>(url: string, ms = 12000, revalidateSec = 900): Promise<T> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: { "User-Agent": "RadarrTracker/1.0", Accept: "application/json" },
-      // sources change often; keep them fresh but let Next cache briefly
-      next: { revalidate: 900 },
+      ...(revalidateSec === 0 ? { cache: "no-store" as const } : { next: { revalidate: revalidateSec } }),
     });
     if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
     return (await res.json()) as T;

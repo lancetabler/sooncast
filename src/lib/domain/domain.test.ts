@@ -3,6 +3,8 @@ import { expandEvent, expandAll, reminderFires, advance } from "./recurrence";
 import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
 import { watchLinks, streamingService } from "./watch";
+import { gpTitle } from "../sources/motogp";
+import { nascarDelta } from "../sports";
 import type { TrackEvent } from "./types";
 
 function ev(partial: Partial<TrackEvent>): TrackEvent {
@@ -168,5 +170,20 @@ describe("watch links", () => {
     // MotoGP rounds are also called "Grand Prix" — must not resolve to F1 TV.
     expect(streamingService({ title: "MotoGP Grand Prix of Japan" })?.name).toBe("MotoGP VideoPass");
     expect(streamingService({ title: "Bruins at Rangers", sourceLabel: "NHL" })).toBeNull();
+  });
+});
+
+describe("live sources helpers", () => {
+  it("gpTitle strips sponsors and title-cases", () => {
+    expect(gpTitle("QATAR AIRWAYS GRAND PRIX OF GREAT BRITAIN ")).toBe("Grand Prix of Great Britain");
+    expect(gpTitle("GRAN PREMIO DE ESPAÑA")).toBe("Gran Premio de España");
+  });
+
+  it("nascarDelta formats gaps and laps down", () => {
+    expect(nascarDelta(0)).toBe("");
+    expect(nascarDelta(1.25)).toBe("+1.3s");
+    expect(nascarDelta(-1)).toBe("1 lap down");
+    expect(nascarDelta(-3)).toBe("3 laps down");
+    expect(nascarDelta("junk")).toBe("");
   });
 });

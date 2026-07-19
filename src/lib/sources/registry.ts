@@ -1,5 +1,6 @@
 import { espn, ESPN_CATALOG, TEAM_LEAGUES } from "./espn";
 import { jolpica } from "./jolpica";
+import { motogp } from "./motogp";
 import { icsfeed } from "./icsfeed";
 import { tmdb } from "./tmdb";
 import type { CatalogItem, NormalizedEvent, SourceProvider } from "./types";
@@ -9,6 +10,7 @@ export { leagueTeams } from "./espn";
 const PROVIDERS: Record<string, SourceProvider> = {
   espn,
   jolpica,
+  motogp,
   ics: icsfeed,
   tmdb,
 };
@@ -47,6 +49,13 @@ const LEAGUE_FOLLOWS: CatalogItem[] = TEAM_LEAGUES.map((l) => ({
   browse: l.browse,
 }));
 
+// MotoGP's own public API — races & sprints with exact session times.
+const MOTOGP_CATALOG: CatalogItem[] = [
+  { provider: "motogp", ref: "motogp", label: "MotoGP", sublabel: "Full season — races & sprints", categorySlug: "racing" },
+  { provider: "motogp", ref: "moto2", label: "Moto2", sublabel: "Full season", categorySlug: "racing" },
+  { provider: "motogp", ref: "moto3", label: "Moto3", sublabel: "Full season", categorySlug: "racing" },
+];
+
 export function featuredCatalog(): CatalogItem[] {
   // Order defines the Discover groups: racing block first, then team leagues, then event sports.
   const racing = ESPN_CATALOG.filter((c) => c.categorySlug === "racing");
@@ -54,6 +63,7 @@ export function featuredCatalog(): CatalogItem[] {
   return [
     { provider: "jolpica", ref: "current", label: "Formula 1", sublabel: "Full season — races, quali & sprints", categorySlug: "f1" },
     ...racing,
+    ...MOTOGP_CATALOG,
     ...ICS_FEEDS,
     ...LEAGUE_FOLLOWS,
     ...rest,

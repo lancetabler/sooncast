@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Newspaper, Trophy, Radio, Flag } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { LeagueOverview, ScoreGame, ScoreTeam } from "@/lib/client/types";
+import type { LeagueOverview, LiveBoard, ScoreGame, ScoreTeam } from "@/lib/client/types";
 
 function TeamLine({ team, winner }: { team?: ScoreTeam; winner: boolean }) {
   if (!team) return null;
@@ -52,6 +52,28 @@ function GameCard({ game }: { game: ScoreGame }) {
       </div>
       <TeamLine team={game.away} winner={awayWon} />
       <TeamLine team={game.home} winner={homeWon} />
+    </div>
+  );
+}
+
+// Real-time running order while a race/session is on track (OpenF1, NASCAR live feed).
+function LiveBoardCard({ board }: { board: LiveBoard }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-red-500/40 bg-card">
+      <div className="flex items-center gap-1.5 border-b border-border/60 px-3 py-2 text-xs font-semibold">
+        <Radio className="size-3.5 animate-pulse text-red-400" />
+        <span className="text-red-400">LIVE</span>
+        <span className="min-w-0 truncate text-muted-foreground">{board.title}</span>
+      </div>
+      <div className="divide-y divide-border/50">
+        {board.rows.map((r) => (
+          <div key={`${r.pos}-${r.name}`} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+            <span className="w-5 shrink-0 text-right text-xs text-muted-foreground">{r.pos}</span>
+            <span className="min-w-0 flex-1 truncate">{r.name}</span>
+            {r.detail && <span className="tabular shrink-0 text-xs text-muted-foreground">{r.detail}</span>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -161,7 +183,7 @@ export function ScoresView() {
     );
   }
 
-  const withScores = leagues.filter((l) => l.scores.length > 0);
+  const withScores = leagues.filter((l) => l.scores.length > 0 || l.live);
   const withStandings = leagues.filter((l) => l.standings.length > 0);
   const withNews = leagues.filter((l) => l.news.length > 0);
 
@@ -190,11 +212,14 @@ export function ScoresView() {
           withScores.map((lg) => (
             <div key={lg.ref} className="flex flex-col gap-2.5">
               <LeagueHeader label={lg.label} />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {lg.scores.map((g) => (
-                  <GameCard key={g.id} game={g} />
-                ))}
-              </div>
+              {lg.live && <LiveBoardCard board={lg.live} />}
+              {lg.scores.length > 0 && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {lg.scores.map((g) => (
+                    <GameCard key={g.id} game={g} />
+                  ))}
+                </div>
+              )}
             </div>
           ))
         ))}
