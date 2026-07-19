@@ -59,7 +59,7 @@ export default function AuthScreen() {
           <h1 className="max-w-lg text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
             Everything you follow,
             <br />
-            <span className="text-primary">on one horizon.</span>
+            <span className="bg-gradient-to-r from-primary via-violet-400 to-primary bg-clip-text text-transparent">on one horizon.</span>
           </h1>
           <p className="mt-5 max-w-md text-lg text-muted-foreground">
             Track any event with a date — races, games, matches, drops, deadlines — and get a nudge before it
@@ -79,7 +79,7 @@ export default function AuthScreen() {
         </div>
 
         {/* Auth card */}
-        <div className="w-full max-w-sm rounded-2xl border border-border bg-card/70 p-6 shadow-2xl backdrop-blur">
+        <div className="w-full max-w-sm rounded-3xl border border-border/70 bg-card/70 p-6 shadow-2xl ring-1 ring-white/5 backdrop-blur-xl">
           {mode !== "forgot" && (
             <div className="mb-5 flex rounded-lg bg-secondary p-1 text-sm">
               <button

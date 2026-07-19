@@ -7,8 +7,8 @@ import { fmtDay } from "@/lib/domain/format";
 
 function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string | number; label: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-border/70 bg-card p-4">
-      <span className="text-muted-foreground">{icon}</span>
+    <div className="surface flex flex-col gap-1 rounded-2xl border border-border/70 bg-card p-4">
+      <span className="text-primary/80">{icon}</span>
       <span className="tabular text-2xl font-bold tracking-tight">{value}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
     </div>

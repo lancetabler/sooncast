@@ -26,7 +26,7 @@ function GameCard({ game }: { game: ScoreGame }) {
   const awayWon = done && !Number.isNaN(hs) && !Number.isNaN(as) && as > hs;
   return (
     <div
-      className={`flex flex-col gap-1.5 rounded-xl border bg-card p-3 ${live ? "border-red-500/40" : "border-border/70"} ${game.favorite ? "ring-1 ring-primary/50" : ""}`}
+      className={`surface flex flex-col gap-1.5 rounded-xl border bg-card p-3 ${live ? "border-red-500/40" : "border-border/70"} ${game.favorite ? "ring-1 ring-primary/50" : ""}`}
     >
       <div className="flex items-center justify-between">
         <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${live ? "text-red-400" : "text-muted-foreground"}`}>

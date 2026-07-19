@@ -73,7 +73,7 @@ export function EventCard({
   return (
     <button
       onClick={onOpen}
-      className={`group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition active:scale-[0.995] hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""} ${favorite ? "ring-1 ring-primary/50" : ""}`}
+      className={`surface surface-lift group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left active:scale-[0.99] hover:-translate-y-px hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""} ${favorite ? "ring-1 ring-primary/50" : ""}`}
     >
       <span className="w-1 shrink-0 rounded-full" style={{ background: color }} />
       <div className="flex w-14 shrink-0 flex-col items-center justify-center">
