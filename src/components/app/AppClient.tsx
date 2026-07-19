@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
+import { Bookmark, CalendarDays, Compass, ListChecks, Plus, Search, Settings2, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
@@ -38,6 +38,31 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [detail, setDetail] = useState<ClientEvent | null>(null);
   const [showOnboard, setShowOnboard] = useState(false);
   const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
+  const [savedViews, setSavedViews] = useState<{ id: string; name: string; categoryId: string; search: string }[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("radarr_views");
+      if (raw) setSavedViews(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function persistViews(v: typeof savedViews) {
+    setSavedViews(v);
+    localStorage.setItem("radarr_views", JSON.stringify(v));
+  }
+  function saveCurrentView() {
+    const name = prompt("Name this view:");
+    if (!name?.trim()) return;
+    persistViews([...savedViews, { id: Math.random().toString(36).slice(2), name: name.trim(), categoryId: filter, search }]);
+  }
+  function applyView(v: { categoryId: string; search: string }) {
+    setFilter(v.categoryId);
+    setSearch(v.search);
+    if (v.search) setShowSearch(true);
+    setView("upcoming");
+  }
 
   const catById = useMemo(() => new Map(state.categories.map((c) => [c.id, c])), [state.categories]);
 
@@ -182,6 +207,37 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       {showSearch && (view === "upcoming" || view === "calendar") && (
         <div className="px-4 pt-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search everything you track…" autoFocus />
+        </div>
+      )}
+
+      {/* Saved views */}
+      {(view === "upcoming" || view === "calendar") && (savedViews.length > 0 || filter !== "all" || search.trim() !== "") && (
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-4 pt-3">
+          {savedViews.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => applyView(v)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Bookmark className="size-3" /> {v.name}
+              <span
+                role="button"
+                aria-label="Delete view"
+                onClick={(e) => { e.stopPropagation(); persistViews(savedViews.filter((x) => x.id !== v.id)); }}
+                className="ml-0.5 hover:text-destructive"
+              >
+                ×
+              </span>
+            </button>
+          ))}
+          {(filter !== "all" || search.trim() !== "") && !savedViews.some((v) => v.categoryId === filter && v.search === search) && (
+            <button
+              onClick={saveCurrentView}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-3" /> Save view
+            </button>
+          )}
         </div>
       )}
 

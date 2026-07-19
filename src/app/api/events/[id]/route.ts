@@ -15,6 +15,7 @@ const patchSchema = z.object({
   url: z.string().max(500).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),
   reminders: z.array(z.number().int().min(0).max(525600)).optional(),
+  tags: z.array(z.string().max(40)).max(20).optional(),
   countUp: z.boolean().optional(),
 });
 
@@ -45,6 +46,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(d.url !== undefined ? { url: d.url } : {}),
       ...(d.note !== undefined ? { note: d.note } : {}),
       ...(d.reminders !== undefined ? { reminders: JSON.stringify(d.reminders) } : {}),
+      ...(d.tags !== undefined ? { tags: JSON.stringify(d.tags) } : {}),
       ...(d.countUp !== undefined ? { countUp: d.countUp } : {}),
     },
   });

@@ -83,13 +83,34 @@ async function fetchStandings(ref: string, favorites: Set<string>): Promise<Stan
   }
 }
 
-/** Build the Scores overview for a user's followed ESPN leagues. */
-export async function getSportsOverview(leagueRefs: string[], favoriteTeams: Set<string>): Promise<LeagueOverview[]> {
+async function fetchF1Standings(): Promise<StandingRow[]> {
+  try {
+    const data = await fetchJSON<any>("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
+    const list: any[] = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+    return list.slice(0, 20).map((d) => ({
+      rank: Number(d.position) || 0,
+      team: `${(d.Driver?.givenName ?? "")[0] ?? ""}. ${d.Driver?.familyName ?? ""}`.trim(),
+      record: d.Constructors?.[0]?.name,
+      points: d.points,
+      highlight: false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Build the Scores overview for a user's followed leagues (ESPN team sports + optional F1). */
+export async function getSportsOverview(leagueRefs: string[], favoriteTeams: Set<string>, includeF1 = false): Promise<LeagueOverview[]> {
   const uniq = [...new Set(leagueRefs)].slice(0, 6);
-  return Promise.all(
+  const leagues = await Promise.all(
     uniq.map(async (ref) => {
       const [news, standings] = await Promise.all([fetchNews(ref), fetchStandings(ref, favoriteTeams)]);
       return { ref, label: labelFor(ref), news, standings };
     })
   );
+  if (includeF1) {
+    const [news, standings] = await Promise.all([fetchNews("racing/f1"), fetchF1Standings()]);
+    leagues.unshift({ ref: "racing/f1", label: "Formula 1", news, standings });
+  }
+  return leagues;
 }

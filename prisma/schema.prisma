@@ -75,6 +75,7 @@ model Event {
   url         String?
   note        String?
   reminders   String   @default("[]") // JSON int[] minutes-before
+  tags        String   @default("[]") // JSON string[]
   imageUrl    String?
   countUp     Boolean  @default(false) // "time since" instead of countdown
   liveState   String? // espn: pre | in | post (last seen)

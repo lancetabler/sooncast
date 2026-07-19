@@ -22,7 +22,7 @@ export function occurrences(
   const filtered = events.filter((e) => {
     if (cat && e.categoryId !== cat) return false;
     if (q) {
-      const hay = `${e.title} ${e.note ?? ""} ${e.location ?? ""}`.toLowerCase();
+      const hay = `${e.title} ${e.note ?? ""} ${e.location ?? ""} ${e.tags.join(" ")}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser, isResponse, ok, bad } from "@/lib/api";
-import { parseIntArray } from "@/lib/serialize";
+import { parseIntArray, parseStringArray } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,8 @@ export async function GET() {
       url: e.url,
       note: e.note,
       reminders: parseIntArray(e.reminders),
+      tags: parseStringArray(e.tags),
+      countUp: e.countUp,
       categoryName: e.category?.name ?? null,
     })),
     follows: follows.map((f) => ({ provider: f.provider, ref: f.ref, label: f.label, categorySlug: f.categorySlug })),
@@ -83,6 +85,8 @@ export async function POST(req: Request) {
         url: e.url ?? null,
         note: e.note ?? null,
         reminders: JSON.stringify(Array.isArray(e.reminders) ? e.reminders : []),
+        tags: JSON.stringify(Array.isArray(e.tags) ? e.tags : []),
+        countUp: !!e.countUp,
         categoryId: e.categoryName ? catByName.get(e.categoryName) ?? null : null,
       },
     });

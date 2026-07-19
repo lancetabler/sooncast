@@ -9,6 +9,15 @@ export function parseIntArray(json: string): number[] {
   }
 }
 
+export function parseStringArray(json: string): string[] {
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((s) => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface ClientEvent {
   id: string;
   title: string;
@@ -23,6 +32,7 @@ export interface ClientEvent {
   note: string | null;
   imageUrl: string | null;
   reminders: number[];
+  tags: string[];
   countUp: boolean;
   followId: string | null;
   sourceProvider: string | null;
@@ -44,6 +54,7 @@ export function serializeEvent(e: DbEvent): ClientEvent {
     note: e.note,
     imageUrl: e.imageUrl,
     reminders: parseIntArray(e.reminders),
+    tags: parseStringArray(e.tags),
     countUp: e.countUp,
     followId: e.followId,
     sourceProvider: e.sourceProvider,

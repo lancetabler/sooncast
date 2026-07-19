@@ -53,6 +53,7 @@ export function EventDialog({
       countUp: event?.countUp ?? false,
       freq: event?.freq ?? "none",
       reminders: event?.reminders ?? defaultReminders,
+      tags: (event?.tags ?? []).join(", "),
       location: event?.location ?? "",
       url: event?.url ?? "",
       note: event?.note ?? "",
@@ -102,6 +103,7 @@ export function EventDialog({
       countUp: f.countUp,
       freq: f.freq,
       reminders: f.reminders,
+      tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 20),
       location: f.location.trim() || null,
       url: f.url.trim() || null,
       note: f.note.trim() || null,
@@ -250,6 +252,11 @@ export function EventDialog({
             <p className="text-xs text-muted-foreground">
               On iPhone, add the event to your calendar for alerts when Radarr is closed — or enable push in Settings.
             </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ev-tags">Tags <span className="text-muted-foreground">(optional, comma-separated)</span></Label>
+            <Input id="ev-tags" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="watch-live, playoffs, must-see" />
           </div>
 
           <div className="flex flex-col gap-2">

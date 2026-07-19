@@ -209,6 +209,14 @@ function DetailBody({ event, category, onEdit }: { event: ClientEvent; category?
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{event.countUp ? "since" : diff > 0 ? "until start" : ""}</div>
       </div>
 
+      {event.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {event.tags.map((t) => (
+            <span key={t} className="rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground">#{t}</span>
+          ))}
+        </div>
+      )}
+
       {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}
 
       <div className="flex flex-col divide-y divide-border/60">
