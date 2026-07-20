@@ -6,7 +6,29 @@ import { Check, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client/api";
+import { SEED_CATEGORIES } from "@/lib/domain/categories";
 import type { CatalogItem } from "@/lib/client/types";
+
+const seedBySlug = new Map(SEED_CATEGORIES.map((c) => [c.slug, c]));
+
+// Bucket the featured catalog by sport so the first-run picker stays scannable.
+function groupItems(list: CatalogItem[]): Array<{ slug: string; items: CatalogItem[] }> {
+  const order: string[] = [];
+  const map = new Map<string, CatalogItem[]>();
+  for (const it of list) {
+    const key = it.categorySlug || "other";
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(it);
+  }
+  return order.map((slug) => ({ slug, items: map.get(slug)! }));
+}
+function groupTitle(slug: string) {
+  const seed = seedBySlug.get(slug);
+  return seed ? `${seed.emoji} ${seed.name}` : slug;
+}
 
 export function Onboarding({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -54,26 +76,36 @@ export function Onboarding({ open, onOpenChange, onDone }: { open: boolean; onOp
         <p className="text-sm text-muted-foreground">
           Pick a few things to follow and we&apos;ll pull in their whole schedule. You can add more (or your own) anytime.
         </p>
-        <div className="my-3 flex flex-col gap-2">
-          {items.map((item) => {
-            const key = item.provider + item.ref;
-            const on = picked.has(key);
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => toggle(key)}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${on ? "border-primary bg-primary/10" : "border-border bg-card"}`}
-              >
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{item.label}</div>
-                  {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
-                </div>
-                {on && <Check className="size-4 shrink-0 text-primary" />}
-              </button>
-            );
-          })}
+        <div className="my-3 flex flex-col gap-4">
+          {groupItems(items).map((g) => (
+            <div key={g.slug} className="flex flex-col gap-2">
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{groupTitle(g.slug)}</p>
+              {g.items.map((item) => {
+                const key = item.provider + item.ref;
+                const on = picked.has(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggle(key)}
+                    className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${on ? "border-primary bg-primary/10" : "border-border bg-card"}`}
+                  >
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.imageUrl} alt="" className="size-8 shrink-0 rounded-lg object-contain" />
+                    ) : (
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">{item.label}</div>
+                      {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
+                    </div>
+                    {on && <Check className="size-4 shrink-0 text-primary" />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
           <Button variant="ghost" onClick={() => { onDone(); onOpenChange(false); }}>

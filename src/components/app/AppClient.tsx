@@ -541,7 +541,20 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         )}
 
         {view === "calendar" && (
-          <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} live={liveMap} onOpen={openEvent} />
+          <CalendarView
+            events={state.events}
+            categories={state.categories}
+            filter={filter}
+            search={search}
+            favoritesOnly={favoritesOnly}
+            favoriteTeams={favoriteTeams}
+            hideWatched={hideWatched}
+            now={now}
+            live={liveMap}
+            onOpen={openEvent}
+            onToggleWatched={toggleWatched}
+            onShare={shareEvent}
+          />
         )}
         {view === "scores" && <ScoresView favoriteAthletes={favoriteAthletes} onToggleFavorite={toggleFavoriteAthlete} />}
         {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}

@@ -11,14 +11,20 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function CalendarView({
-  events, categories, filter, now, live, onOpen,
+  events, categories, filter, search, favoritesOnly, favoriteTeams, hideWatched, now, live, onOpen, onToggleWatched, onShare,
 }: {
   events: ClientEvent[];
   categories: ClientCategory[];
   filter: string;
+  search: string;
+  favoritesOnly: boolean;
+  favoriteTeams: string[];
+  hideWatched: boolean;
   now: number;
   live?: Record<string, LiveStatus>;
   onOpen: (occ: Occurrence) => void;
+  onToggleWatched: (eventId: string) => void;
+  onShare: (eventId: string) => void;
 }) {
   const today = new Date();
   const [ym, setYm] = useState({ y: today.getFullYear(), m: today.getMonth() });
@@ -33,14 +39,19 @@ export function CalendarView({
     const daysInMonth = new Date(ym.y, ym.m + 1, 0).getDate();
     const monthStart = new Date(ym.y, ym.m, 1);
     const monthEnd = new Date(ym.y, ym.m, daysInMonth, 23, 59, 59);
-    const occ = occFn(events, monthStart, monthEnd, { categoryId: filter });
+    const occ = occFn(events, monthStart, monthEnd, {
+      categoryId: filter,
+      search,
+      favoriteTeams: favoritesOnly ? favoriteTeams : undefined,
+      hideWatched,
+    });
     const byDay = new Map<number, Occurrence[]>();
     for (const o of occ) {
       const d = o.start.getDate();
       (byDay.get(d) ?? byDay.set(d, []).get(d)!).push(o);
     }
     return { byDay, first, daysInMonth };
-  }, [events, filter, ym]);
+  }, [events, filter, search, favoritesOnly, favoriteTeams, hideWatched, ym]);
 
   function shift(delta: number) {
     const d = new Date(ym.y, ym.m + delta, 1);
@@ -92,9 +103,14 @@ export function CalendarView({
             <button
               key={i}
               onClick={() => setSelectedDay(day)}
+              aria-label={`${MONTHS[ym.m]} ${day}${occ.length ? `, ${occ.length} event${occ.length > 1 ? "s" : ""}` : ""}`}
+              aria-pressed={isSel}
               className={`flex aspect-square flex-col rounded-xl border p-1.5 text-left transition ${isSel ? "border-primary bg-primary/10" : occ.length ? "border-border bg-card" : "border-border/50"} ${isToday && !isSel ? "border-primary/60" : ""}`}
             >
-              <span className={`text-xs font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{day}</span>
+              <span className="flex items-start justify-between">
+                <span className={`text-xs font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{day}</span>
+                {occ.length > 0 && <span className="tabular text-[9px] font-semibold text-muted-foreground/80">{occ.length}</span>}
+              </span>
               <span className="mt-auto flex flex-wrap gap-0.5">
                 {colors.map((c, j) => (
                   <span key={j} className="size-1.5 rounded-full" style={{ background: c as string }} />
@@ -117,7 +133,10 @@ export function CalendarView({
             now={now}
             reminders={occ.event.reminders.length}
             live={live?.[occ.event.id]}
+            watched={!!occ.event.watchedAt}
             onOpen={() => onOpen(occ)}
+            onSwipeLeft={() => onToggleWatched(occ.event.id)}
+            onSwipeRight={() => onShare(occ.event.id)}
           />
         ))}
       </div>
