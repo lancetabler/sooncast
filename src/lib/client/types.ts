@@ -10,6 +10,7 @@ export interface CatalogItem {
   categorySlug: string;
   imageUrl?: string;
   browse?: boolean;
+  description?: string;
 }
 
 export interface LiveStatus {

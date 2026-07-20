@@ -30,8 +30,8 @@ export async function fetchFromSource(provider: string, ref: string): Promise<No
 // Featured, one-tap follows shown in Discover before the user searches.
 // Public .ics calendar feeds (community-maintained) for series without a clean API.
 const ICS_FEEDS: CatalogItem[] = [
-  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/njulhksvo83qeoruc3nhend9js%40group.calendar.google.com/public/basic.ics", label: "IMSA WeatherTech", sublabel: "SportsCar Championship — full season", categorySlug: "imsa" },
-  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/61jccgg4rshh1temqk0dj4lens%40group.calendar.google.com/public/basic.ics", label: "FIA WEC", sublabel: "World Endurance Championship + Le Mans", categorySlug: "wec" },
+  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/njulhksvo83qeoruc3nhend9js%40group.calendar.google.com/public/basic.ics", label: "IMSA WeatherTech", sublabel: "SportsCar Championship — full season", categorySlug: "imsa", description: "IMSA — the WeatherTech SportsCar Championship, North America's top endurance/sprint sports-car series; home of the Rolex 24 at Daytona." },
+  { provider: "ics", ref: "https://calendar.google.com/calendar/ical/61jccgg4rshh1temqk0dj4lens%40group.calendar.google.com/public/basic.ics", label: "FIA WEC", sublabel: "World Endurance Championship + Le Mans", categorySlug: "wec", description: "FIA WEC — the World Endurance Championship for sports cars (Hypercars & GT3), including the legendary 24 Hours of Le Mans." },
 ];
 
 // Follow a whole league's season, or open its team picker to just track your club.

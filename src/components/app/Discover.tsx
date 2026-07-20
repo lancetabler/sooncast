@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Search, Loader2, CalendarPlus, Check, Users, ChevronDown } from "lucide-react";
+import { Plus, Search, Loader2, CalendarPlus, Check, Users, ChevronDown, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,6 +91,9 @@ export function Discover({
   const [addingKey, setAddingKey] = useState<string | null>(null);
   const [confirmItem, setConfirmItem] = useState<CatalogItem | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // "what is this?" blurb, toggled per card
+  const [openInfo, setOpenInfo] = useState<string | null>(null);
 
   // per-league team lists (favorite-team picker), lazily loaded
   const [openLeague, setOpenLeague] = useState<string | null>(null);
@@ -224,6 +227,16 @@ export function Discover({
             <div className="truncate text-sm font-semibold">{item.label}</div>
             {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
           </div>
+          {item.description && (
+            <button
+              onClick={() => setOpenInfo(openInfo === item.ref ? null : item.ref)}
+              aria-label="What is this?"
+              title="What is this?"
+              className={`grid size-8 shrink-0 place-items-center rounded-full border border-border transition hover:text-foreground ${openInfo === item.ref ? "text-primary" : "text-muted-foreground"}`}
+            >
+              <Info className="size-4" />
+            </button>
+          )}
           {canBrowse && (
             <button
               onClick={() => toggleTeams(item)}
@@ -235,6 +248,12 @@ export function Discover({
           )}
           <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} onUnfollow={setConfirmItem} />
         </div>
+
+        {item.description && openInfo === item.ref && (
+          <div className="border-t border-border/60 bg-secondary/20 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            {item.description}
+          </div>
+        )}
 
         {canBrowse && isOpen && (
           <div className="border-t border-border/60 bg-secondary/30 p-3">

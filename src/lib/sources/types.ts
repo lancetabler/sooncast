@@ -20,6 +20,7 @@ export interface CatalogItem {
   categorySlug: string;
   imageUrl?: string;
   browse?: boolean; // league whose teams can be browsed for a favorite-team follow
+  description?: string; // plain-English "what is this" blurb (shown via the ⓘ button)
 }
 
 export interface SourceProvider {

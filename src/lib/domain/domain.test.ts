@@ -3,6 +3,7 @@ import { expandEvent, expandAll, reminderFires, advance } from "./recurrence";
 import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
 import { watchLinks, streamingService, channelFromNote } from "./watch";
+import { leagueBlurb } from "./league-info";
 import { gpTitle } from "../sources/motogp";
 import { bumpSeason, tsdbStart } from "../sources/thesportsdb";
 import { nascarDelta } from "../sports";
@@ -168,6 +169,13 @@ describe("watch links", () => {
     expect(channelFromNote("📺 TNT, HBO Max")).toBe("TNT, HBO Max");
     expect(channelFromNote("NASCAR Cup Series")).toBeNull(); // plain league name, no channel
     expect(channelFromNote(null)).toBeNull();
+  });
+
+  it("leagueBlurb describes series, incl. abbreviations and team→league fallback", () => {
+    expect(leagueBlurb("4372")).toMatch(/British Touring/i); // BTCC
+    expect(leagueBlurb("4409")).toMatch(/Rally/i); // WRC
+    expect(leagueBlurb("hockey/nhl/teams/17")).toMatch(/National Hockey League/i); // team → NHL
+    expect(leagueBlurb("nope/xyz")).toBeUndefined();
   });
 
   it("deep-links series to the right OTT service", () => {
