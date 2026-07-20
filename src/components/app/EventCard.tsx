@@ -1,9 +1,11 @@
 "use client";
 
-import { Bell, Check, MapPin, Repeat, Star } from "lucide-react";
+import { useRef, useState } from "react";
+import { Bell, Check, Eye, MapPin, Repeat, Share2, Star } from "lucide-react";
 import type { Occurrence } from "@/lib/domain/types";
 import type { ClientCategory, LiveStatus } from "@/lib/client/types";
 import { humanCountdown, fmtTime } from "@/lib/domain/format";
+import { haptic } from "@/lib/client/haptics";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -23,6 +25,8 @@ export function EventCard({
   favorite,
   watched,
   onOpen,
+  onSwipeLeft,
+  onSwipeRight,
 }: {
   occ: Occurrence;
   category?: ClientCategory;
@@ -33,8 +37,66 @@ export function EventCard({
   favorite?: boolean;
   watched?: boolean;
   onOpen: () => void;
+  onSwipeLeft?: () => void; // swipe ← : mark watched
+  onSwipeRight?: () => void; // swipe → : share
 }) {
   const color = category?.color ?? "var(--primary)";
+  const swipeable = !!(onSwipeLeft || onSwipeRight);
+
+  // Horizontal swipe with tap preserved (only engages once horizontal movement dominates).
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const axisRef = useRef<"none" | "h" | "v">("none");
+  const movedRef = useRef(false);
+  const SWIPE = 72;
+
+  function onTouchStart(e: React.TouchEvent) {
+    if (!swipeable || e.touches.length !== 1) return;
+    startRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    axisRef.current = "none";
+    movedRef.current = false;
+    setDragging(true);
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!swipeable || !startRef.current) return;
+    const dx = e.touches[0].clientX - startRef.current.x;
+    const dy = e.touches[0].clientY - startRef.current.y;
+    if (axisRef.current === "none") {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) axisRef.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    }
+    if (axisRef.current !== "h") return; // let vertical scroll happen
+    movedRef.current = true;
+    if (e.cancelable) e.preventDefault();
+    // clamp, and don't allow a direction that has no action
+    let x = Math.max(-96, Math.min(96, dx));
+    if (x < 0 && !onSwipeLeft) x = 0;
+    if (x > 0 && !onSwipeRight) x = 0;
+    setDragX(x);
+  }
+  function onTouchEnd() {
+    if (!swipeable) return;
+    setDragging(false);
+    const x = dragX;
+    if (x <= -SWIPE && onSwipeLeft) {
+      haptic();
+      onSwipeLeft();
+    } else if (x >= SWIPE && onSwipeRight) {
+      haptic();
+      onSwipeRight();
+    }
+    setDragX(0);
+    startRef.current = null;
+    axisRef.current = "none";
+  }
+  function handleClick() {
+    if (movedRef.current) {
+      movedRef.current = false;
+      return; // was a swipe, not a tap
+    }
+    onOpen();
+  }
+
   const start = occ.start;
   const startMs = start.getTime();
   const endMs = occ.end.getTime();
@@ -74,10 +136,15 @@ export function EventCard({
     scoreText = scoreLine(live);
   }
 
-  return (
+  const card = (
     <button
-      onClick={onOpen}
-      className={`surface surface-lift group flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left active:scale-[0.99] hover:-translate-y-px hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""} ${favorite ? "ring-1 ring-primary/50" : ""}`}
+      onClick={handleClick}
+      onTouchStart={swipeable ? onTouchStart : undefined}
+      onTouchMove={swipeable ? onTouchMove : undefined}
+      onTouchEnd={swipeable ? onTouchEnd : undefined}
+      onTouchCancel={swipeable ? onTouchEnd : undefined}
+      style={swipeable ? { transform: `translateX(${dragX}px)`, transition: dragging ? "none" : "transform 0.2s ease" } : undefined}
+      className={`surface surface-lift group relative flex w-full items-stretch gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left active:scale-[0.99] hover:-translate-y-px hover:border-border ${isPast && !occ.event.countUp ? "opacity-55" : ""} ${isLive ? "border-red-500/40" : ""} ${favorite ? "ring-1 ring-primary/50" : ""}`}
     >
       <span className="w-1 shrink-0 rounded-full" style={{ background: color }} />
       <div className="flex w-14 shrink-0 flex-col items-center justify-center">
@@ -117,5 +184,24 @@ export function EventCard({
         {cd}
       </span>
     </button>
+  );
+
+  if (!swipeable) return card;
+
+  // Action layers revealed behind the card as it slides.
+  const leftOpacity = Math.max(0, Math.min(1, dragX / SWIPE)); // swipe → : share
+  const rightOpacity = Math.max(0, Math.min(1, -dragX / SWIPE)); // swipe ← : watched
+  return (
+    <div className="relative">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-between overflow-hidden rounded-2xl px-5">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-primary" style={{ opacity: leftOpacity }}>
+          <Share2 className="size-5" /> Share
+        </span>
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400" style={{ opacity: rightOpacity }}>
+          {watched ? "Unwatch" : "Watched"} {watched ? <Eye className="size-5" /> : <Check className="size-5" />}
+        </span>
+      </div>
+      {card}
+    </div>
   );
 }

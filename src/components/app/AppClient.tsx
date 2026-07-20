@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, CalendarDays, CalendarRange, ChevronDown, Compass, LayoutGrid, ListChecks, Plus, Search, Settings2, Sparkles, Trophy, User, X } from "lucide-react";
+import { Bookmark, CalendarDays, CalendarRange, ChevronDown, Compass, LayoutGrid, ListChecks, Plus, RefreshCw, Search, Settings2, Sparkles, Trophy, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
+import { usePullToRefresh } from "@/lib/client/usePullToRefresh";
+import { haptic } from "@/lib/client/haptics";
 import { occurrences } from "@/lib/client/occurrences";
 import { sameDay, preciseCountdown, fmtDay, fmtTime, addDays, startOfDay } from "@/lib/domain/format";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -175,6 +177,36 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       /* keep last state */
     }
   }, []);
+
+  // Swipe ← on a card: mark watched (optimistic). Swipe → : native share.
+  const toggleWatched = useCallback(
+    (eventId: string) => {
+      const ev = state.events.find((e) => e.id === eventId);
+      if (!ev) return;
+      const next = ev.watchedAt ? null : new Date().toISOString();
+      setState((s) => ({ ...s, events: s.events.map((e) => (e.id === eventId ? { ...e, watchedAt: next } : e)) }));
+      api
+        .updateEvent(eventId, { watchedAt: next })
+        .then(() => toast.success(next ? "Marked watched ✓" : "Marked unwatched"))
+        .catch(() => refresh());
+    },
+    [state.events, refresh]
+  );
+  const shareEvent = useCallback(
+    (eventId: string) => {
+      const ev = state.events.find((e) => e.id === eventId);
+      if (!ev) return;
+      const when = new Date(ev.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      const text = `${ev.title} — ${when}`;
+      const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
+      if (nav.share) nav.share({ title: ev.title, text, url: ev.url ?? undefined }).catch(() => {});
+      else {
+        navigator.clipboard?.writeText(ev.url ? `${text} ${ev.url}` : text);
+        toast.success("Copied to clipboard");
+      }
+    },
+    [state.events]
+  );
 
   // Star/unstar a driver or player (keyed "leagueRef::name"); optimistic + persisted.
   const favoriteAthletes = state.user.favoriteAthletes;
@@ -347,6 +379,14 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     await api.logout().catch(() => {});
     router.refresh();
   }
+  const navTo = (v: View) => {
+    haptic(6);
+    setView(v);
+  };
+
+  // Pull-to-refresh (disabled while an overlay/sheet is open).
+  const overlayOpen = !!detail || showEventDialog || settingsOpen || paletteOpen || showOnboard || saveViewOpen;
+  const { pull, refreshing } = usePullToRefresh(refresh, !overlayOpen);
 
   const totalUpcoming = occ.length;
   const hasWatched = state.events.some((e) => e.watchedAt);
@@ -388,7 +428,25 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:max-w-5xl">
+      {/* Pull-to-refresh indicator */}
+      {(pull > 0 || refreshing) && (
+        <div
+          className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-40 -translate-x-1/2"
+          style={{ opacity: Math.min(1, pull / 55) }}
+        >
+          <span className="grid size-9 place-items-center rounded-full border border-border bg-card shadow-md">
+            <RefreshCw
+              className={`size-4 text-primary ${refreshing ? "animate-spin" : ""}`}
+              style={refreshing ? undefined : { transform: `rotate(${pull * 3}deg)` }}
+            />
+          </span>
+        </div>
+      )}
+
+      <div
+        className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:max-w-5xl"
+        style={{ transform: pull ? `translateY(${Math.min(pull, 80)}px)` : undefined, transition: pull && !refreshing ? "none" : "transform 0.2s ease" }}
+      >
       {showSearch && (view === "upcoming" || view === "calendar") && (
         <div className="px-4 pt-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search everything you track…" autoFocus />
@@ -449,8 +507,9 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         </div>
       )}
 
-      {/* Main */}
+      {/* Main — each view fades/slides in on switch for a native feel */}
       <main className="flex-1 px-4 py-2">
+        <div key={view} className="animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
         {view === "upcoming" && (
           totalUpcoming === 0 ? (
             <EmptyState hasEvents={state.events.length > 0} onAdd={newEvent} onDiscover={() => setView("discover")} />
@@ -473,6 +532,8 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
                   clashKeys={clashKeys}
                   isFavorite={isFavorite}
                   onOpen={openEvent}
+                  onToggleWatched={toggleWatched}
+                  onShare={shareEvent}
                 />
               ))}
             </div>
@@ -485,6 +546,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         {view === "scores" && <ScoresView favoriteAthletes={favoriteAthletes} onToggleFavorite={toggleFavoriteAthlete} />}
         {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}
         {view === "profile" && <ProfileView state={state} onOpenEvent={(ev) => setDetail(ev)} />}
+        </div>
       </main>
       </div>
 
@@ -501,11 +563,11 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
 
       {/* Bottom nav (mobile only) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl border-t border-border/60 bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-        <Tab icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => setView("upcoming")} />
-        <Tab icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
-        <Tab icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => setView("scores")} />
-        <Tab icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => setView("discover")} />
-        <Tab icon={<User className="size-5" />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
+        <Tab icon={<ListChecks className="size-5" />} label="Upcoming" active={view === "upcoming"} onClick={() => navTo("upcoming")} />
+        <Tab icon={<CalendarDays className="size-5" />} label="Calendar" active={view === "calendar"} onClick={() => navTo("calendar")} />
+        <Tab icon={<Trophy className="size-5" />} label="Scores" active={view === "scores"} onClick={() => navTo("scores")} />
+        <Tab icon={<Compass className="size-5" />} label="Discover" active={view === "discover"} onClick={() => navTo("discover")} />
+        <Tab icon={<User className="size-5" />} label="Profile" active={view === "profile"} onClick={() => navTo("profile")} />
       </nav>
       </div>
 
@@ -574,6 +636,8 @@ function UpcomingSection({
   clashKeys,
   isFavorite,
   onOpen,
+  onToggleWatched,
+  onShare,
 }: {
   section: Section;
   defaultOpen: boolean;
@@ -583,6 +647,8 @@ function UpcomingSection({
   clashKeys: Set<string>;
   isFavorite: (title: string) => boolean;
   onOpen: (occ: Occurrence) => void;
+  onToggleWatched: (eventId: string) => void;
+  onShare: (eventId: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [showAll, setShowAll] = useState(false);
@@ -609,6 +675,8 @@ function UpcomingSection({
               favorite={isFavorite(occ.event.title)}
               watched={!!occ.event.watchedAt}
               onOpen={() => onOpen(occ)}
+              onSwipeLeft={() => onToggleWatched(occ.event.id)}
+              onSwipeRight={() => onShare(occ.event.id)}
             />
           ))}
         </div>
