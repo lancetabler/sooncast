@@ -72,6 +72,22 @@ export interface LeagueOverview {
   live?: LiveBoard;
 }
 
+export interface Champion {
+  season: string;
+  name: string;
+}
+export interface LeagueProfile {
+  label: string;
+  description?: string;
+  logo?: string;
+  website?: string;
+  meta: Array<{ label: string; value: string }>;
+  standingsTitle: string;
+  standings: StandingRow[];
+  results: ScoreGame[];
+  champions: Champion[];
+}
+
 export interface CronJobStatus {
   name: string;
   label: string;

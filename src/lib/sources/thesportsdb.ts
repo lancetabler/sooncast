@@ -9,6 +9,33 @@ const base = () => `https://www.thesportsdb.com/api/v1/json/${key()}`;
 
 export const tsdbConfigured = () => !!key();
 
+export interface TsdbLeagueInfo {
+  description?: string;
+  badge?: string;
+  founded?: string;
+  country?: string;
+  website?: string;
+  currentSeason?: string;
+}
+
+/** Rich league metadata for a profile view (description, badge, founding year, country, site). */
+export async function tsdbLeagueInfo(id: string): Promise<TsdbLeagueInfo | null> {
+  if (!key() || !/^\d+$/.test(id)) return null;
+  const data = await fetchJSON<{ leagues?: Array<Record<string, string | null>> }>(`${base()}/lookupleague.php?id=${id}`).catch(() => null);
+  const l = data?.leagues?.[0];
+  if (!l) return null;
+  const site = (l.strWebsite || "").trim();
+  const formed = (l.intFormedYear || "").trim();
+  return {
+    description: (l.strDescriptionEN || "").trim() || undefined,
+    badge: l.strBadge || l.strLogo || undefined,
+    founded: formed && formed !== "0" ? formed : undefined,
+    country: l.strCountry || undefined,
+    website: site ? (site.startsWith("http") ? site : `https://${site}`) : undefined,
+    currentSeason: (l.strCurrentSeason || "").trim() || undefined,
+  };
+}
+
 /** "2025" → "2026"; "2025-2026" → "2026-2027" (season formats vary per league). */
 export function bumpSeason(s: string): string | null {
   const m = s.trim().match(/^(\d{4})(?:-(\d{4}))?$/);

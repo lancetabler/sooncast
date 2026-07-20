@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
+import { LeagueProfileSheet } from "@/components/app/LeagueProfileSheet";
 import { api, ApiError } from "@/lib/client/api";
 import { SEED_CATEGORIES } from "@/lib/domain/categories";
 import type { CatalogItem, ClientCategory, ClientFollow } from "@/lib/client/types";
@@ -92,8 +93,8 @@ export function Discover({
   const [confirmItem, setConfirmItem] = useState<CatalogItem | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // "what is this?" blurb, toggled per card
-  const [openInfo, setOpenInfo] = useState<string | null>(null);
+  // league profile sheet (deep-dive info + past data)
+  const [profileItem, setProfileItem] = useState<CatalogItem | null>(null);
 
   // per-league team lists (favorite-team picker), lazily loaded
   const [openLeague, setOpenLeague] = useState<string | null>(null);
@@ -216,27 +217,23 @@ export function Discover({
       : teams;
     return (
       <div key={followKey(item.provider, item.ref)} className="overflow-hidden rounded-xl border border-border/70 bg-card">
-        <div className="flex items-center gap-3 p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {item.imageUrl ? (
-            <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
-          ) : (
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{item.label}</div>
-            {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
-          </div>
-          {item.description && (
-            <button
-              onClick={() => setOpenInfo(openInfo === item.ref ? null : item.ref)}
-              aria-label="What is this?"
-              title="What is this?"
-              className={`grid size-8 shrink-0 place-items-center rounded-full border border-border transition hover:text-foreground ${openInfo === item.ref ? "text-primary" : "text-muted-foreground"}`}
-            >
-              <Info className="size-4" />
-            </button>
-          )}
+        <div className="flex items-center gap-2 p-3">
+          {/* Tap the logo/name to open the league's profile (what it is + past data). */}
+          <button onClick={() => setProfileItem(item)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`About ${item.label}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {item.imageUrl ? (
+              <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
+            ) : (
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1">
+                <span className="truncate text-sm font-semibold">{item.label}</span>
+                <Info className="size-3 shrink-0 text-muted-foreground/60" />
+              </div>
+              {item.sublabel && <div className="truncate text-xs text-muted-foreground">{item.sublabel}</div>}
+            </div>
+          </button>
           {canBrowse && (
             <button
               onClick={() => toggleTeams(item)}
@@ -248,12 +245,6 @@ export function Discover({
           )}
           <FollowPill item={item} followed={followedKeys.has(followKey(item.provider, item.ref))} adding={addingKey === followKey(item.provider, item.ref)} onFollow={follow} onUnfollow={setConfirmItem} />
         </div>
-
-        {item.description && openInfo === item.ref && (
-          <div className="border-t border-border/60 bg-secondary/20 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-            {item.description}
-          </div>
-        )}
 
         {canBrowse && isOpen && (
           <div className="border-t border-border/60 bg-secondary/30 p-3">
@@ -351,6 +342,15 @@ export function Discover({
           </div>
         </div>
       )}
+
+      <LeagueProfileSheet
+        item={profileItem}
+        followed={!!profileItem && followedKeys.has(followKey(profileItem.provider, profileItem.ref))}
+        adding={!!profileItem && addingKey === followKey(profileItem.provider, profileItem.ref)}
+        onOpenChange={(o) => !o && setProfileItem(null)}
+        onFollow={follow}
+        onUnfollow={setConfirmItem}
+      />
 
       <ConfirmDialog
         open={!!confirmItem}

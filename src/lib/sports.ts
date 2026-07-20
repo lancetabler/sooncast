@@ -1,6 +1,7 @@
 import { fetchJSON } from "@/lib/sources/types";
 import { TEAM_LEAGUES, ESPN_CATALOG } from "@/lib/sources/espn";
 import { MOTOGP_CLASSES, classRaces, motogpStandings } from "@/lib/sources/motogp";
+import { thesportsdb, tsdbLeagueInfo } from "@/lib/sources/thesportsdb";
 
 const SITE = "https://site.api.espn.com/apis/site/v2/sports";
 const WEB = "https://site.web.api.espn.com/apis/v2/sports";
@@ -402,4 +403,95 @@ export async function getSportsOverview(leagueRefs: string[], favoriteTeams: Set
   const uniq = [...new Set(leagueRefs)].filter((r) => r !== "racing/f1").slice(0, 12);
   const refs = includeF1 ? ["racing/f1", ...uniq] : uniq;
   return Promise.all(refs.map((ref) => buildLeague(ref, favoriteTeams)));
+}
+
+// ---- League profile (Discover "what is this?" deep-dive with past data) ----
+
+export interface Champion {
+  season: string;
+  name: string;
+}
+export interface LeagueProfile {
+  label: string;
+  description?: string;
+  logo?: string;
+  website?: string;
+  meta: Array<{ label: string; value: string }>;
+  standingsTitle: string;
+  standings: StandingRow[];
+  results: ScoreGame[]; // recent finals + upcoming
+  champions: Champion[]; // past season winners, newest first
+}
+
+// Past F1 World Champions — jolpica needs a call per season, so fetch the last decade in parallel.
+async function fetchF1Champions(): Promise<Champion[]> {
+  const now = new Date().getUTCFullYear();
+  const years = Array.from({ length: 10 }, (_, i) => now - 1 - i);
+  const res = await Promise.allSettled(
+    years.map((y) => fetchJSON<any>(`https://api.jolpi.ca/ergast/f1/${y}/driverStandings.json`, 12000, 86400))
+  );
+  const out: Champion[] = [];
+  for (const r of res) {
+    if (r.status !== "fulfilled") continue;
+    const list = r.value?.MRData?.StandingsTable?.StandingsLists?.[0];
+    const champ = list?.DriverStandings?.[0]?.Driver;
+    if (list?.season && champ) out.push({ season: String(list.season), name: `${champ.givenName ?? ""} ${champ.familyName ?? ""}`.trim() });
+  }
+  return out;
+}
+
+async function tsdbResults(ref: string): Promise<ScoreGame[]> {
+  try {
+    const evs = await thesportsdb.fetchEvents(ref);
+    const now = Date.now();
+    return evs.slice(0, 6).map((e) => {
+      const t = new Date(e.start).getTime();
+      return {
+        id: e.extId,
+        state: (now < t ? "pre" : "post") as ScoreGame["state"],
+        detail: new Date(e.start).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+        startISO: e.start,
+        name: e.title,
+        favorite: false,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Assemble a rich profile for one league/series — description, standings, results and past champions. */
+export async function getLeagueProfile(provider: string, ref: string): Promise<LeagueProfile> {
+  const meta: LeagueProfile["meta"] = [];
+
+  if (provider === "thesportsdb") {
+    const [info, results] = await Promise.all([tsdbLeagueInfo(ref), tsdbResults(ref)]);
+    if (info?.founded) meta.push({ label: "Founded", value: info.founded });
+    if (info?.country) meta.push({ label: "Country", value: info.country });
+    if (info?.currentSeason) meta.push({ label: "Season", value: info.currentSeason });
+    return {
+      label: "",
+      description: info?.description,
+      logo: info?.badge,
+      website: info?.website,
+      meta,
+      standingsTitle: "Standings",
+      standings: [],
+      results,
+      champions: [],
+    };
+  }
+
+  if (provider === "espn" || provider === "jolpica" || provider === "motogp") {
+    const isF1 = provider === "jolpica" || ref === "racing/f1";
+    const lgRef = isF1 ? "racing/f1" : provider === "motogp" ? `motogp:${ref}` : ref;
+    const [lg, champions] = await Promise.all([buildLeague(lgRef, new Set<string>()), isF1 ? fetchF1Champions() : Promise.resolve<Champion[]>([])]);
+    const sport = ref.split("/")[0];
+    const standingsTitle =
+      sport === "tennis" ? "World rankings" : isF1 || provider === "motogp" || sport === "racing" ? "Championship" : "Standings";
+    return { label: lg.label, meta, standingsTitle, standings: lg.standings, results: lg.scores, champions };
+  }
+
+  // ics / tmdb — no structured data source; the client still shows the static blurb.
+  return { label: "", meta, standingsTitle: "Standings", standings: [], results: [], champions: [] };
 }
