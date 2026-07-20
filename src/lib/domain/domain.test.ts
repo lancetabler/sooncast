@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { expandEvent, expandAll, reminderFires, advance } from "./recurrence";
 import { buildICS, parseICS } from "./ics";
 import { humanCountdown, reminderLabel, groupFor } from "./format";
-import { watchLinks, streamingService } from "./watch";
+import { watchLinks, streamingService, channelFromNote } from "./watch";
 import { gpTitle } from "../sources/motogp";
 import { bumpSeason, tsdbStart } from "../sources/thesportsdb";
 import { nascarDelta } from "../sports";
@@ -162,6 +162,12 @@ describe("watch links", () => {
   it("maps Flo and FanDuel families by prefix", () => {
     expect(watchLinks("FloRacing")[0].url).toContain("flosports.tv");
     expect(watchLinks("FanDuel SN DET")[0].url).toContain("fanduelsportsnetwork.com");
+  });
+
+  it("channelFromNote extracts the broadcaster for reminders", () => {
+    expect(channelFromNote("📺 TNT, HBO Max")).toBe("TNT, HBO Max");
+    expect(channelFromNote("NASCAR Cup Series")).toBeNull(); // plain league name, no channel
+    expect(channelFromNote(null)).toBeNull();
   });
 
   it("deep-links series to the right OTT service", () => {

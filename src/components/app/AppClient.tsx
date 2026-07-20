@@ -123,6 +123,17 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     }
   }, []);
 
+  // Star/unstar a driver or player (keyed "leagueRef::name"); optimistic + persisted.
+  const favoriteAthletes = state.user.favoriteAthletes;
+  const toggleFavoriteAthlete = useCallback(
+    (key: string) => {
+      const next = favoriteAthletes.includes(key) ? favoriteAthletes.filter((k) => k !== key) : [...favoriteAthletes, key];
+      setState((s) => ({ ...s, user: { ...s.user, favoriteAthletes: next } }));
+      api.saveSettings({ favoriteAthletes: next }).catch(() => {});
+    },
+    [favoriteAthletes]
+  );
+
   // countdown ticker (1s) for live countdowns; coarse clock (30s) drives the heavy grouping memos
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -411,7 +422,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         {view === "calendar" && (
           <CalendarView events={state.events} categories={state.categories} filter={filter} now={now} live={liveMap} onOpen={openEvent} />
         )}
-        {view === "scores" && <ScoresView />}
+        {view === "scores" && <ScoresView favoriteAthletes={favoriteAthletes} onToggleFavorite={toggleFavoriteAthlete} />}
         {view === "discover" && <Discover categories={state.categories} follows={state.follows} onChanged={refresh} />}
         {view === "profile" && <ProfileView state={state} onOpenEvent={(ev) => setDetail(ev)} />}
       </main>

@@ -71,6 +71,7 @@ export function reminderFires(occurrences: Occurrence[]): ReminderFire[] {
         minutes: min,
         location: occ.event.location,
         url: occ.event.url,
+        note: occ.event.note,
       });
     }
   }

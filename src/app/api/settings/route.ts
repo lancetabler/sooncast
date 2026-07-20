@@ -8,6 +8,7 @@ const schema = z.object({
   defaultReminders: z.array(z.number().int().min(0).max(525600)).optional(),
   quietStart: z.number().int().min(0).max(1439).nullable().optional(),
   quietEnd: z.number().int().min(0).max(1439).nullable().optional(),
+  favoriteAthletes: z.array(z.string().max(120)).max(200).optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -25,6 +26,7 @@ export async function PATCH(req: Request) {
       ...(d.defaultReminders !== undefined ? { defaultReminders: JSON.stringify(d.defaultReminders) } : {}),
       ...(d.quietStart !== undefined ? { quietStart: d.quietStart } : {}),
       ...(d.quietEnd !== undefined ? { quietEnd: d.quietEnd } : {}),
+      ...(d.favoriteAthletes !== undefined ? { favoriteAthletes: JSON.stringify(d.favoriteAthletes) } : {}),
     },
   });
   return ok({ ok: true });

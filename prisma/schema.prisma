@@ -19,6 +19,7 @@ model User {
   quietStart   Int? // minutes from midnight, optional quiet-hours window
   quietEnd     Int?
   defaultReminders String @default("[0,60,1440]") // JSON int[] minutes-before
+  favoriteAthletes String @default("[]") // JSON string[] of "leagueRef::name" (starred drivers/players)
   createdAt    DateTime @default(now())
 
   categories    Category[]

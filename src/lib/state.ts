@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { serializeEvent, serializeCategory, parseIntArray, type ClientEvent, type ClientCategory } from "@/lib/serialize";
+import { serializeEvent, serializeCategory, parseIntArray, parseStringArray, type ClientEvent, type ClientCategory } from "@/lib/serialize";
 
 export interface ClientFollow {
   id: string;
@@ -21,6 +21,7 @@ export interface ClientUser {
   quietStart: number | null;
   quietEnd: number | null;
   defaultReminders: number[];
+  favoriteAthletes: string[];
   feedUrl: string;
 }
 export interface StateBundle {
@@ -65,6 +66,7 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
       quietStart: user.quietStart,
       quietEnd: user.quietEnd,
       defaultReminders: parseIntArray(user.defaultReminders),
+      favoriteAthletes: parseStringArray(user.favoriteAthletes),
       feedUrl: `${appUrl}/api/feed/${user.feedToken}`,
     },
     categories: categories.map(serializeCategory),

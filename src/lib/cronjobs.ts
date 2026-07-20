@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { expandAll, reminderFires } from "@/lib/domain/recurrence";
 import { reminderLabel } from "@/lib/domain/format";
+import { channelFromNote } from "@/lib/domain/watch";
 import { parseIntArray } from "@/lib/serialize";
 import { sendPush, pushReady } from "@/lib/push";
 import { getLiveStatuses, scoreString } from "@/lib/live";
@@ -103,10 +104,12 @@ export async function runReminders(): Promise<ReminderResult> {
       const existing = await prisma.reminderLog.findUnique({ where: { key: fire.key } });
       if (existing) continue;
       await prisma.reminderLog.create({ data: { userId: user.id, key: fire.key } });
+      const channel = channelFromNote(fire.note);
+      const suffix = (fire.location ? ` · ${fire.location}` : "") + (channel ? ` · 📺 ${channel}` : "");
       const body =
         fire.minutes === 0
-          ? "Starting now" + (fire.location ? ` · ${fire.location}` : "")
-          : `${reminderLabel(fire.minutes).replace(" before", "")} — starts soon` + (fire.location ? ` · ${fire.location}` : "");
+          ? "Starting now" + suffix
+          : `${reminderLabel(fire.minutes).replace(" before", "")} — starts soon` + suffix;
       await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined);
     }
 

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Newspaper, Trophy, Radio, Flag } from "lucide-react";
+import { Newspaper, Trophy, Radio, Flag, Star } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LeagueOverview, LiveBoard, ScoreGame, ScoreTeam } from "@/lib/client/types";
+
+// Leagues whose standings rows are individuals (drivers/riders/players) you can star as a favorite.
+const isAthleteLeague = (ref: string) => ref.startsWith("racing/") || ref.startsWith("motogp") || ref.startsWith("tennis/");
+const athleteKey = (ref: string, name: string) => `${ref}::${name}`;
 
 function TeamLine({ team, winner }: { team?: ScoreTeam; winner: boolean }) {
   if (!team) return null;
@@ -78,22 +82,52 @@ function LiveBoardCard({ board }: { board: LiveBoard }) {
   );
 }
 
-function StandingsTable({ lg }: { lg: LeagueOverview }) {
+function StandingsTable({
+  lg,
+  favoriteAthletes,
+  onToggleFavorite,
+}: {
+  lg: LeagueOverview;
+  favoriteAthletes: string[];
+  onToggleFavorite: (key: string) => void;
+}) {
+  const athletes = isAthleteLeague(lg.ref);
+  const favSet = new Set(favoriteAthletes);
+  const isFav = (name: string) => athletes && favSet.has(athleteKey(lg.ref, name));
+  // Starred drivers/players float to the top; everyone else keeps rank order.
+  const rows = athletes
+    ? [...lg.standings].sort((a, b) => (isFav(b.team) ? 1 : 0) - (isFav(a.team) ? 1 : 0))
+    : lg.standings;
+
   return (
     <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
       <div className="divide-y divide-border/50">
-        {lg.standings.map((row) => (
-          <div
-            key={row.team + row.rank}
-            className={`flex items-center gap-2 px-3 py-2 text-sm ${row.highlight ? "bg-primary/10" : ""}`}
-          >
-            <span className="w-5 shrink-0 text-right text-xs text-muted-foreground">{row.rank}</span>
-            {row.logo && <img src={row.logo} alt="" className="size-5 shrink-0 object-contain" />}
-            <span className={`min-w-0 flex-1 truncate ${row.highlight ? "font-semibold" : ""}`}>{row.team}</span>
-            {row.record && <span className="tabular shrink-0 text-xs text-muted-foreground">{row.record}</span>}
-            {row.points && <span className="tabular w-10 shrink-0 text-right font-semibold">{row.points}</span>}
-          </div>
-        ))}
+        {rows.map((row) => {
+          const fav = isFav(row.team);
+          const highlighted = fav || row.highlight;
+          const inner = (
+            <>
+              <span className="w-5 shrink-0 text-right text-xs text-muted-foreground">{row.rank}</span>
+              {row.logo && <img src={row.logo} alt="" className="size-5 shrink-0 object-contain" />}
+              <span className={`min-w-0 flex-1 truncate ${highlighted ? "font-semibold" : ""}`}>{row.team}</span>
+              {row.record && <span className="tabular shrink-0 text-xs text-muted-foreground">{row.record}</span>}
+              {row.points && <span className="tabular w-10 shrink-0 text-right font-semibold">{row.points}</span>}
+              {athletes && (
+                <Star className={`size-3.5 shrink-0 ${fav ? "fill-primary text-primary" : "text-muted-foreground/40"}`} />
+              )}
+            </>
+          );
+          const cls = `flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${highlighted ? "bg-primary/10" : ""}`;
+          return athletes ? (
+            <button key={row.team + row.rank} onClick={() => onToggleFavorite(athleteKey(lg.ref, row.team))} className={`${cls} transition hover:bg-secondary/40`}>
+              {inner}
+            </button>
+          ) : (
+            <div key={row.team + row.rank} className={cls}>
+              {inner}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -127,7 +161,13 @@ const rememberTab = (t: ScoresTab) => {
   lastTab = t;
 };
 
-export function ScoresView() {
+export function ScoresView({
+  favoriteAthletes,
+  onToggleFavorite,
+}: {
+  favoriteAthletes: string[];
+  onToggleFavorite: (key: string) => void;
+}) {
   const [leagues, setLeagues] = useState<LeagueOverview[] | null>(
     () => (scoresCache && Date.now() - scoresCache.at < 90_000 ? scoresCache.leagues : null)
   );
@@ -251,12 +291,19 @@ export function ScoresView() {
         (withStandings.length === 0 ? (
           <EmptyTab emoji="🏆" title="No standings yet" hint="Standings, championship points and world rankings show here once a season is underway." />
         ) : (
-          withStandings.map((lg) => (
-            <div key={lg.ref} className="flex flex-col gap-2.5">
-              <LeagueHeader label={lg.label} />
-              <StandingsTable lg={lg} />
-            </div>
-          ))
+          <>
+            {withStandings.some((lg) => isAthleteLeague(lg.ref)) && (
+              <p className="-mb-1 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+                <Star className="size-3" /> Tap a driver or player to star your favorite
+              </p>
+            )}
+            {withStandings.map((lg) => (
+              <div key={lg.ref} className="flex flex-col gap-2.5">
+                <LeagueHeader label={lg.label} />
+                <StandingsTable lg={lg} favoriteAthletes={favoriteAthletes} onToggleFavorite={onToggleFavorite} />
+              </div>
+            ))}
+          </>
         ))}
 
       {tab === "news" &&

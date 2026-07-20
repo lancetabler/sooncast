@@ -105,6 +105,12 @@ function urlFor(rawName: string): string | undefined {
   return undefined;
 }
 
+/** The channel string from a "📺 TNT, HBO Max" note, or null. Server-safe (no React). */
+export function channelFromNote(note: string | null | undefined): string | null {
+  if (!note || !note.startsWith("📺")) return null;
+  return note.replace(/^📺\s*/, "").trim() || null;
+}
+
 /** Parse the network list out of a "📺 FOX, FS1" note (with or without the emoji prefix). */
 export function watchLinks(note: string | null | undefined): WatchLink[] {
   if (!note) return [];

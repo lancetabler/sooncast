@@ -34,4 +34,5 @@ export interface ReminderFire {
   minutes: number;
   location?: string | null;
   url?: string | null;
+  note?: string | null;
 }

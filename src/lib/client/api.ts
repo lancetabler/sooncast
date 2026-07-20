@@ -58,6 +58,7 @@ export const api = {
     defaultReminders?: number[];
     quietStart?: number | null;
     quietEnd?: number | null;
+    favoriteAthletes?: string[];
   }) => req("/api/settings", { method: "PATCH", body: JSON.stringify(b) }),
 
   cronStatus: () => req<CronStatus>("/api/cron/status"),

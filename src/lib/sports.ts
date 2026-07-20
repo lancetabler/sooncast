@@ -151,7 +151,8 @@ async function fetchScores(ref: string, favorites: Set<string>): Promise<ScoreGa
   try {
     const from = new Date(Date.now() - 2 * 86400_000);
     const to = new Date(Date.now() + 4 * 86400_000);
-    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=100`);
+    // Short cache so the Scores tab's live polling actually reflects moving scores.
+    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=100`, 12000, 25);
     const teamOf = (c: any): ScoreTeam | undefined =>
       c
         ? {
@@ -197,7 +198,7 @@ async function fetchEventCards(ref: string): Promise<ScoreGame[]> {
   try {
     const from = new Date(Date.now() - 8 * 86400_000);
     const to = new Date(Date.now() + 30 * 86400_000);
-    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=50`);
+    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=50`, 12000, 25);
     const cards: ScoreGame[] = (data?.events || []).map((ev: any) => {
       const state = stateOf(ev);
       const comp = ev?.competitions?.[0];
