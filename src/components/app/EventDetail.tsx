@@ -194,6 +194,20 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   const watch = event.note && event.note.startsWith("📺") ? event.note.replace(/^📺\s*/, "") : null;
   const networks = watchLinks(watch);
   const service = streamingService(event);
+  const channelWatch = networks.find((n) => n.url); // first linked broadcaster (e.g. TNT)
+
+  // The one prominent "watch" button:
+  //  1. a real OTT service (F1 TV, FOX Sports, VideoPass…) — that's the way to watch;
+  //  2. else the specific channel this event is on (e.g. TNT), when we know it;
+  //  3. else a schedule/where-to-watch link (multi-network series like NASCAR).
+  const watchBtn: { url: string; label: string } | null =
+    service?.url && !service.cta
+      ? { url: service.url, label: `Watch on ${service.name}` }
+      : channelWatch?.url
+        ? { url: channelWatch.url, label: `Watch on ${channelWatch.name}` }
+        : service?.url
+          ? { url: service.url, label: service.cta ?? `Watch on ${service.name}` }
+          : null;
 
   const rows: Array<[string, React.ReactNode]> = [
     ["Category", `${category?.emoji ?? ""} ${category?.name ?? "—"}`],
@@ -262,14 +276,14 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{event.countUp ? "since" : diff > 0 ? "until start" : ""}</div>
       </div>
 
-      {service?.url && (
+      {watchBtn && (
         <a
-          href={service.url}
+          href={watchBtn.url}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
         >
-          <Play className="size-4" /> {service.cta ?? `Watch on ${service.name}`}
+          <Play className="size-4" /> {watchBtn.label}
         </a>
       )}
 

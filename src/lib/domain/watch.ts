@@ -50,6 +50,8 @@ const NETWORK_URLS: Record<string, string> = {
   tbs: "https://play.max.com",
   trutv: "https://play.max.com",
   max: "https://play.max.com",
+  "hbo max": "https://play.max.com",
+  hbomax: "https://play.max.com",
   // streamers
   "prime video": "https://www.primevideo.com",
   "amazon prime video": "https://www.primevideo.com",

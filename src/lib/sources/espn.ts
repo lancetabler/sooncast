@@ -143,11 +143,52 @@ export async function leagueTeams(ref: string): Promise<CatalogItem[]> {
     );
 }
 
+// Motorsport: one race per day per series, so we key every race by its UTC date and give
+// it a STABLE date-based extId. The full season comes from leagues[].calendar (no broadcast);
+// the scoreboard supplies richer near-term data (real name, venue, and the TV/streaming
+// broadcast) which we overlay on the same date — so a race upgrades to show its exact channel
+// (e.g. "📺 TNT, HBO Max") as the date nears, updating one row instead of creating a duplicate.
+async function fetchRacingSeason(ref: string): Promise<NormalizedEvent[]> {
+  const from = new Date(Date.now() - 2 * 86400_000);
+  const to = new Date(Date.now() + 200 * 86400_000);
+  const data = await fetchJSON<any>(`${BASE}/${ref}/scoreboard?limit=1000&dates=${ymd(from)}-${ymd(to)}`);
+  const leagueName = data?.leagues?.[0]?.name || "";
+  const refKey = ref.replace(/\//g, "-");
+  const byDate = new Map<string, NormalizedEvent>();
+
+  // Base layer: the full published calendar (dates + labels, no broadcast).
+  for (const c of data?.leagues?.[0]?.calendar || []) {
+    if (!c?.startDate) continue;
+    const d = new Date(c.startDate);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = ymd(d);
+    byDate.set(key, {
+      extId: `espn-${refKey}-${key}`,
+      title: c.label || leagueName || "Race",
+      start: d.toISOString(),
+      durationMin: 150,
+      note: leagueName || undefined,
+    });
+  }
+  // Overlay: richer scoreboard entries win on their date (carry venue + broadcast channel).
+  for (const e of data?.events || []) {
+    const n = normalizeEvent(e, leagueName);
+    if (!n) continue;
+    const key = ymd(new Date(n.start));
+    byDate.set(key, { ...n, extId: `espn-${refKey}-${key}` });
+  }
+
+  const cutoff = Date.now() - 2 * 86400_000;
+  return [...byDate.values()].filter((n) => new Date(n.start).getTime() >= cutoff);
+}
+
 export const espn: SourceProvider = {
   id: "espn",
   async fetchEvents(ref: string): Promise<NormalizedEvent[]> {
     if (ref.includes("/teams/")) return fetchTeamSchedule(ref);
+    if (ref.startsWith("racing/")) return fetchRacingSeason(ref);
 
+    // Whole-league follows (soccer, etc.): many events per day, so key each by its own id.
     const from = new Date();
     const to = new Date(Date.now() + 150 * 86400_000);
     const url = `${BASE}/${ref}/scoreboard?limit=1000&dates=${ymd(from)}-${ymd(to)}`;
@@ -158,21 +199,6 @@ export const espn: SourceProvider = {
     for (const e of data?.events || []) {
       const n = normalizeEvent(e, leagueName);
       if (n) out.set(n.extId, n);
-    }
-    // Motorsport & some series expose the full season under leagues[].calendar
-    for (const c of data?.leagues?.[0]?.calendar || []) {
-      if (!c?.startDate) continue;
-      const startISO = new Date(c.startDate).toISOString();
-      const extId = `espn-cal-${ref}-${startISO}`;
-      if (!out.has(extId)) {
-        out.set(extId, {
-          extId,
-          title: c.label || leagueName || "Event",
-          start: startISO,
-          durationMin: 150,
-          note: leagueName || undefined,
-        });
-      }
     }
     return [...out.values()];
   },

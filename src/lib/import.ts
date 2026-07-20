@@ -123,6 +123,24 @@ export async function runFollowImport(
       await prisma.$transaction(updates.slice(i, i + CHUNK));
     }
     result.updated = updates.length;
+
+    // Racing follows switched to a stable date-based extId (see fetchRacingSeason). Clear out
+    // any older-scheme rows for this follow in the fetched window — but never touch history or
+    // watched races — so the season reconciles to one row per race instead of duplicates.
+    if (follow.provider === "espn" && follow.ref.startsWith("racing/")) {
+      const keep = normalized.map((n) => `${follow.provider}:${n.extId}`);
+      await prisma.event
+        .deleteMany({
+          where: {
+            userId,
+            followId: follow.id,
+            watchedAt: null,
+            start: { gte: new Date(Date.now() - 2 * 86400_000) },
+            sourceExtId: { notIn: keep },
+          },
+        })
+        .catch(() => {});
+    }
   }
 
   await prisma.follow.update({ where: { id: follow.id }, data: { lastSync: new Date() } });
