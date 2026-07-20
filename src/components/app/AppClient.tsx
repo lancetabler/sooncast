@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, CalendarDays, ChevronDown, Compass, ListChecks, Plus, Search, Settings2, Trophy, User, X } from "lucide-react";
+import { Bookmark, CalendarDays, CalendarRange, ChevronDown, Compass, LayoutGrid, ListChecks, Plus, Search, Settings2, Sparkles, Trophy, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { registerServiceWorker, setBadge } from "@/lib/client/push";
@@ -40,8 +40,13 @@ interface Section {
   label: string;
   items: Occurrence[];
   nearTerm: boolean;
+  soonest?: number;
 }
 const SECTION_CAP = 25; // cap cards rendered per section before "show more"
+
+// How the Upcoming list is organized. Persisted so the app reopens the way you left it.
+type Lens = "today" | "date" | "category";
+const LENS_KEY = "radarr_lens";
 
 // Assign an occurrence to a section: fine-grained near term, then month-by-month.
 function sectionFor(o: Occurrence, now: number): { key: string; label: string; order: number; nearTerm: boolean } {
@@ -53,6 +58,43 @@ function sectionFor(o: Occurrence, now: number): { key: string; label: string; o
   if (s.getTime() < addDays(startOfDay(nowDate), 7).getTime()) return { key: "week", label: "This week", order: 3, nearTerm: true };
   const label = s.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   return { key: `m-${s.getFullYear()}-${s.getMonth()}`, label, order: 100 + s.getFullYear() * 12 + s.getMonth(), nearTerm: false };
+}
+
+// Group occurrences into the time buckets (Live/Today/Tomorrow/This week/months).
+function groupByDate(occ: Occurrence[], now: number): Section[] {
+  const map = new Map<string, Section>();
+  const order = new Map<string, number>();
+  for (const o of occ) {
+    const sec = sectionFor(o, now);
+    let entry = map.get(sec.key);
+    if (!entry) {
+      entry = { key: sec.key, label: sec.label, items: [], nearTerm: sec.nearTerm };
+      map.set(sec.key, entry);
+      order.set(sec.key, sec.order);
+    }
+    entry.items.push(o);
+  }
+  return [...map.values()].sort((a, b) => order.get(a.key)! - order.get(b.key)!);
+}
+
+// Group occurrences by category (sport), soonest category first; near-term categories open by default.
+function groupByCategory(occ: Occurrence[], catById: Map<string, ClientCategory>, now: number): Section[] {
+  const map = new Map<string, Section>();
+  for (const o of occ) {
+    const id = o.event.categoryId ?? "none";
+    let entry = map.get(id);
+    if (!entry) {
+      const cat = catById.get(id);
+      entry = { key: id, label: cat ? `${cat.emoji} ${cat.name}` : "Other", items: [], nearTerm: false, soonest: o.start.getTime() };
+      map.set(id, entry);
+    }
+    entry.items.push(o);
+    entry.soonest = Math.min(entry.soonest ?? o.start.getTime(), o.start.getTime());
+  }
+  const weekOut = now + 7 * 86400_000;
+  const out = [...map.values()];
+  for (const s of out) s.nearTerm = (s.soonest ?? Infinity) < weekOut;
+  return out.sort((a, b) => (a.soonest ?? 0) - (b.soonest ?? 0));
 }
 
 export default function AppClient({ initial }: { initial: StateBundle }) {
@@ -76,15 +118,26 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [liveMap, setLiveMap] = useState<Record<string, LiveStatus>>({});
   const [savedViews, setSavedViews] = useState<{ id: string; name: string; categoryId: string; search: string }[]>([]);
+  const [lens, setLens] = useState<Lens>("today");
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem("radarr_views");
       if (raw) setSavedViews(JSON.parse(raw));
+      const l = localStorage.getItem(LENS_KEY);
+      if (l === "today" || l === "date" || l === "category") setLens(l);
     } catch {
       /* ignore */
     }
   }, []);
+  function chooseLens(l: Lens) {
+    setLens(l);
+    try {
+      localStorage.setItem(LENS_KEY, l);
+    } catch {
+      /* ignore */
+    }
+  }
   function persistViews(v: typeof savedViews) {
     setSavedViews(v);
     localStorage.setItem("radarr_views", JSON.stringify(v));
@@ -227,30 +280,27 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     };
   }, [state.events]);
 
-  // Sections: Live/Today/Tomorrow/This week, then month-by-month. Driven by the coarse clock.
-  const sections = useMemo<Section[]>(() => {
+  // The filtered occurrence list, computed once; the three lenses just group it differently.
+  // In "category" lens the single-category chip is ignored (the whole point is to see every category).
+  const occ = useMemo(() => {
     const from = new Date(coarseNow - 3 * 3600_000);
     const to = new Date(coarseNow + 400 * 86400_000);
-    const occ = occurrences(state.events, from, to, {
-      categoryId: filter,
+    return occurrences(state.events, from, to, {
+      categoryId: lens === "category" ? "all" : filter,
       search,
       favoriteTeams: favoritesOnly ? favoriteTeams : undefined,
       hideWatched,
     });
-    const map = new Map<string, Section>();
-    const order = new Map<string, number>();
-    for (const o of occ) {
-      const sec = sectionFor(o, coarseNow);
-      let entry = map.get(sec.key);
-      if (!entry) {
-        entry = { key: sec.key, label: sec.label, items: [], nearTerm: sec.nearTerm };
-        map.set(sec.key, entry);
-        order.set(sec.key, sec.order);
-      }
-      entry.items.push(o);
-    }
-    return [...map.values()].sort((a, b) => order.get(a.key)! - order.get(b.key)!);
-  }, [state.events, filter, search, coarseNow, favoritesOnly, favoriteTeams, hideWatched]);
+  }, [state.events, filter, search, coarseNow, favoritesOnly, favoriteTeams, hideWatched, lens]);
+
+  const dateSections = useMemo(() => groupByDate(occ, coarseNow), [occ, coarseNow]);
+  const categorySections = useMemo(() => groupByCategory(occ, catById, coarseNow), [occ, catById, coarseNow]);
+  // "Today" focus: just what's on now / today / tomorrow.
+  const todaySections = useMemo(
+    () => dateSections.filter((s) => s.key === "live" || s.key === "today" || s.key === "tomorrow"),
+    [dateSections]
+  );
+  const activeSections = lens === "category" ? categorySections : lens === "today" ? todaySections : dateSections;
 
   const usedCategories = useMemo(() => {
     const ids = new Set(state.events.map((e) => e.categoryId));
@@ -258,16 +308,16 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   }, [state.events, state.categories]);
 
   const nextUp = useMemo(() => {
-    for (const sec of sections) {
+    for (const sec of dateSections) {
       const fut = sec.items.find((o) => o.start.getTime() > now);
       if (fut) return fut;
     }
     return null;
-  }, [sections, now]);
+  }, [dateSections, now]);
 
   // occurrences whose time overlaps another (near-term timed events only — that's where clashes matter)
   const clashKeys = useMemo(() => {
-    const all = sections.filter((s) => s.nearTerm).flatMap((s) => s.items).filter((o) => !o.event.allDay && !o.event.countUp);
+    const all = dateSections.filter((s) => s.nearTerm).flatMap((s) => s.items).filter((o) => !o.event.allDay && !o.event.countUp);
     const set = new Set<string>();
     for (let i = 0; i < all.length; i++) {
       for (let j = i + 1; j < all.length; j++) {
@@ -278,10 +328,10 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       }
     }
     return set;
-  }, [sections]);
+  }, [dateSections]);
 
-  function openEvent(occ: Occurrence) {
-    const ev = state.events.find((e) => e.id === occ.event.id);
+  function openEvent(o: Occurrence) {
+    const ev = state.events.find((e) => e.id === o.event.id);
     if (ev) setDetail(ev);
   }
   function newEvent() {
@@ -298,7 +348,12 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     router.refresh();
   }
 
-  const totalUpcoming = sections.reduce((n, s) => n + s.items.length, 0);
+  const totalUpcoming = occ.length;
+  const hasWatched = state.events.some((e) => e.watchedAt);
+  const showCategoryChips = !(view === "upcoming" && lens === "category"); // grouping by category makes the chips redundant
+  const chipRowVisible =
+    (view === "upcoming" || view === "calendar") &&
+    ((showCategoryChips && usedCategories.length > 0) || favoriteTeams.length > 0 || hasWatched);
 
   return (
     <div className="flex min-h-dvh">
@@ -371,42 +426,47 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         </div>
       )}
 
+      {/* Organize lens — Today / By date / Groups (Upcoming only) */}
+      {view === "upcoming" && <LensControl lens={lens} onChange={chooseLens} />}
+
       {/* Category filter chips + quick toggles */}
-      {(view === "upcoming" || view === "calendar") &&
-        (usedCategories.length > 0 || favoriteTeams.length > 0 || state.events.some((e) => e.watchedAt)) && (
-          <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-3">
-            <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
-            {usedCategories.map((c) => (
-              <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={`${c.emoji} ${c.name}`} color={c.color} />
-            ))}
-            {favoriteTeams.length > 0 && (
-              <Chip active={favoritesOnly} onClick={() => setFavoritesOnly((v) => !v)} label="⭐ Favorites" />
-            )}
-            {state.events.some((e) => e.watchedAt) && (
-              <Chip active={hideWatched} onClick={() => setHideWatched((v) => !v)} label={hideWatched ? "🙈 Watched hidden" : "👁 Hide watched"} />
-            )}
-          </div>
-        )}
+      {chipRowVisible && (
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-3">
+          {showCategoryChips && (
+            <>
+              <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
+              {usedCategories.map((c) => (
+                <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={`${c.emoji} ${c.name}`} color={c.color} />
+              ))}
+            </>
+          )}
+          {favoriteTeams.length > 0 && (
+            <Chip active={favoritesOnly} onClick={() => setFavoritesOnly((v) => !v)} label="⭐ Favorites" />
+          )}
+          {hasWatched && (
+            <Chip active={hideWatched} onClick={() => setHideWatched((v) => !v)} label={hideWatched ? "🙈 Watched hidden" : "👁 Hide watched"} />
+          )}
+        </div>
+      )}
 
       {/* Main */}
       <main className="flex-1 px-4 py-2">
         {view === "upcoming" && (
           totalUpcoming === 0 ? (
-            <EmptyState
-              hasEvents={state.events.length > 0}
-              onAdd={newEvent}
-              onDiscover={() => setView("discover")}
-            />
+            <EmptyState hasEvents={state.events.length > 0} onAdd={newEvent} onDiscover={() => setView("discover")} />
+          ) : activeSections.length === 0 ? (
+            // Only "Today" can be empty while other things are still upcoming.
+            <TodayEmpty nextUp={nextUp} category={nextUp ? catById.get(nextUp.event.categoryId ?? "") : undefined} onSeeAll={() => chooseLens("date")} onOpen={() => nextUp && openEvent(nextUp)} />
           ) : (
             <div className="flex flex-col gap-1">
-              {nextUp && !search && (
+              {lens === "date" && nextUp && !search && (
                 <UpNextHero occ={nextUp} category={catById.get(nextUp.event.categoryId ?? "")} now={now} onOpen={() => openEvent(nextUp)} />
               )}
-              {sections.map((sec) => (
+              {activeSections.map((sec) => (
                 <UpcomingSection
                   key={sec.key}
                   section={sec}
-                  defaultOpen={sec.nearTerm}
+                  defaultOpen={lens === "today" ? true : sec.nearTerm}
                   catById={catById}
                   now={now}
                   liveMap={liveMap}
@@ -613,6 +673,78 @@ function Chip({ active, onClick, label, color }: { active: boolean; onClick: () 
     >
       {label}
     </button>
+  );
+}
+
+// Segmented control that switches how the Upcoming list is organized.
+function LensControl({ lens, onChange }: { lens: Lens; onChange: (l: Lens) => void }) {
+  const opts: Array<{ id: Lens; label: string; icon: React.ReactNode }> = [
+    { id: "today", label: "Today", icon: <Sparkles className="size-3.5" /> },
+    { id: "date", label: "By date", icon: <CalendarRange className="size-3.5" /> },
+    { id: "category", label: "Groups", icon: <LayoutGrid className="size-3.5" /> },
+  ];
+  return (
+    <div className="px-4 pt-3">
+      <div className="flex rounded-full border border-border/70 bg-card p-1">
+        {opts.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-semibold transition ${
+              lens === o.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {o.icon} {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Shown in the "Today" lens when nothing is on today or tomorrow.
+function TodayEmpty({
+  nextUp,
+  category,
+  onSeeAll,
+  onOpen,
+}: {
+  nextUp: Occurrence | null;
+  category?: ClientCategory;
+  onSeeAll: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-16 text-center">
+      <div className="text-5xl">🌤️</div>
+      <div>
+        <h3 className="font-semibold">You&apos;re clear today</h3>
+        <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">Nothing on today or tomorrow.</p>
+      </div>
+      {nextUp && (
+        <button
+          onClick={onOpen}
+          className="flex w-full max-w-sm items-center gap-3 rounded-xl border border-border/70 bg-card p-3 text-left transition hover:border-border"
+        >
+          <span
+            className="grid size-9 shrink-0 place-items-center rounded-lg text-sm"
+            style={{ background: `color-mix(in oklch, ${category?.color ?? "var(--primary)"} 18%, transparent)` }}
+          >
+            {category?.emoji ?? "📌"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Next up</div>
+            <div className="truncate text-sm font-semibold">{nextUp.event.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {fmtDay(nextUp.start)}{nextUp.event.allDay ? "" : ` · ${fmtTime(nextUp.start)}`}
+            </div>
+          </div>
+        </button>
+      )}
+      <button onClick={onSeeAll} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+        See everything upcoming
+      </button>
+    </div>
   );
 }
 
