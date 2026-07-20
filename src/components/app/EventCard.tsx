@@ -61,14 +61,17 @@ export function EventCard({
     cdClass = "text-muted-foreground";
   }
 
-  // Live scores override the countdown when the game is on or done today.
+  // Live scores: keep the pill SHORT ("LIVE"/"Final") and show the score on the wrapping
+  // meta line below, so a long score can never force the card past the screen edge.
+  let scoreText: string | null = null;
   if (live?.state === "in") {
-    cd = scoreLine(live) ?? "LIVE";
+    cd = "LIVE";
     cdClass = "text-red-400";
+    scoreText = scoreLine(live);
   } else if (live?.state === "post") {
-    const s = scoreLine(live);
-    cd = s ? `Final ${s}` : "Final";
+    cd = "Final";
     cdClass = "text-muted-foreground";
+    scoreText = scoreLine(live);
   }
 
   return (
@@ -99,17 +102,18 @@ export function EventCard({
         <span className="truncate text-[15px] font-semibold tracking-tight">{occ.event.title}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
           <span>{occ.event.allDay ? "All day" : fmtTime(start)}</span>
+          {scoreText && <span className={`font-semibold ${live?.state === "in" ? "text-red-400" : "text-foreground"}`}>{scoreText}</span>}
           {occ.event.location && (
-            <span className="inline-flex items-center gap-1 truncate">
-              <MapPin className="size-3" /> {occ.event.location}
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin className="size-3 shrink-0" /> <span className="truncate">{occ.event.location}</span>
             </span>
           )}
-          {watch && <span className="inline-flex items-center gap-1 truncate text-foreground/70">📺 {watch}</span>}
+          {watch && <span className="inline-flex min-w-0 items-center gap-1 text-foreground/70">📺 <span className="truncate">{watch}</span></span>}
           {clash && <span className="font-medium text-amber-400">⚠ overlaps</span>}
         </span>
       </div>
 
-      <span className={`tabular self-center whitespace-nowrap rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold ${cdClass}`}>
+      <span className={`tabular shrink-0 self-center whitespace-nowrap rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold ${cdClass}`}>
         {cd}
       </span>
     </button>

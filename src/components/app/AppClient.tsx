@@ -359,7 +359,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     <div className="flex min-h-dvh">
       <div className="app-backdrop" aria-hidden />
       <DesktopSidebar view={view} onSelect={setView} onNew={newEvent} onCommand={() => setPaletteOpen(true)} />
-      <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-2xl flex-col pb-24 lg:mx-0 lg:max-w-none lg:flex-1 lg:pb-8">
+      <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-2xl flex-col overflow-x-clip pb-24 lg:mx-0 lg:max-w-none lg:flex-1 lg:pb-8">
       {/* Header */}
       <header className="radarr-glow sticky top-0 z-30 border-b border-border/60 bg-background/70 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 lg:max-w-5xl">
@@ -649,7 +649,7 @@ function UpNextHero({ occ, category, now, onOpen }: { occ: Occurrence; category?
         </span>
       </div>
       <div className="truncate text-lg font-bold tracking-tight">{occ.event.title}</div>
-      <div className="tabular flex items-end gap-1 text-3xl font-bold leading-none" style={{ color }}>
+      <div className="tabular flex items-end gap-1 text-[1.75rem] font-bold leading-none sm:text-3xl" style={{ color }}>
         {d > 0 && <span>{d}<span className="text-base font-semibold text-muted-foreground">d</span> </span>}
         <span>{pad(h)}:{pad(m)}:{pad(s)}</span>
       </div>
