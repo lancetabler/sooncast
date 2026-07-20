@@ -70,6 +70,9 @@ export interface LeagueOverview {
   standings: StandingRow[];
   scores: ScoreGame[];
   live?: LiveBoard;
+  /** A primary fetch for this league failed transiently — the UI shows a "couldn't load" hint
+   *  instead of a misleading empty state. */
+  partial?: boolean;
 }
 
 export interface Champion {

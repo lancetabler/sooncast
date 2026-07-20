@@ -19,6 +19,9 @@ async function run(req: Request) {
 
   const reminders = await runReminders();
   const digest = await runDigest({ force: false });
+  // Reflect a real digest send in the health panel (tick drives the digest, so otherwise its
+  // CronRun row would stay blank under the recommended single-pinger setup).
+  if (digest.sent > 0) await recordCronRun("digest");
 
   let sync: Awaited<ReturnType<typeof runSync>> | null = null;
   const lastSync = await prisma.cronRun.findUnique({ where: { name: "sync-sources" } }).catch(() => null);

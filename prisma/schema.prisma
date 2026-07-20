@@ -91,7 +91,9 @@ model Event {
   updatedAt DateTime @updatedAt
 
   @@index([userId, start])
-  @@index([userId, sourceExtId])
+  // Unique so createMany({ skipDuplicates }) is atomic against concurrent/overlapping imports
+  // (manual events have a null sourceExtId, which Postgres treats as distinct — no collision).
+  @@unique([userId, sourceExtId])
 }
 
 model Follow {

@@ -173,11 +173,17 @@ export function ScoresView({
   );
   const [loading, setLoading] = useState(!leagues);
   const [live, setLive] = useState(false);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [tab, setTab] = useState<ScoresTab>(lastTab);
 
   function switchTab(t: ScoresTab) {
     rememberTab(t);
     setTab(t);
+  }
+  function retry() {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
   }
 
   // Poll while the tab is open. Fast (30s) when anything is live, gentle (90s) otherwise.
@@ -194,10 +200,13 @@ export function ScoresView({
         if (!active) return;
         scoresCache = { at: Date.now(), leagues: r.leagues };
         setLeagues(r.leagues);
+        setError(false);
         setLive(anyLive(r.leagues));
         schedule(anyLive(r.leagues));
       } catch {
         if (active) {
+          // Distinguish "couldn't load" from "nothing on": keep any stale data, flag the error.
+          setError(true);
           setLeagues((prev) => prev ?? []);
           schedule(false);
         }
@@ -215,7 +224,7 @@ export function ScoresView({
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [reloadKey]);
 
   if (loading) {
     return (
@@ -236,7 +245,18 @@ export function ScoresView({
   }
 
   if (!leagues?.length) {
-    return (
+    return error ? (
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <div className="text-4xl">📡</div>
+        <h3 className="font-semibold">Couldn&apos;t load scores</h3>
+        <p className="mx-auto max-w-xs text-sm text-muted-foreground">
+          The sports feed didn&apos;t respond. This is usually temporary.
+        </p>
+        <button onClick={retry} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          Try again
+        </button>
+      </div>
+    ) : (
       <EmptyTab emoji="🏆" title="No leagues yet" hint="Follow a team or league in Discover to see scores, standings and news here." />
     );
   }
@@ -244,6 +264,8 @@ export function ScoresView({
   const withScores = leagues.filter((l) => l.scores.length > 0 || l.live);
   const withStandings = leagues.filter((l) => l.standings.length > 0);
   const withNews = leagues.filter((l) => l.news.length > 0);
+  // A league whose fetch failed transiently: an empty section is "couldn't load", not "nothing on".
+  const anyPartial = leagues.some((l) => l.partial);
 
   return (
     <div className="flex flex-col gap-5 pb-4">
@@ -265,6 +287,16 @@ export function ScoresView({
           <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-400">
             <Radio className="size-3 animate-pulse" /> Live — auto-updating
           </div>
+        )}
+        {error && (
+          <button onClick={retry} className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-amber-500">
+            ⚠️ Couldn&apos;t refresh — showing last data. Tap to retry.
+          </button>
+        )}
+        {!error && anyPartial && (
+          <button onClick={retry} className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-amber-500">
+            ⚠️ Some data couldn&apos;t load — showing what we have. Tap to retry.
+          </button>
         )}
       </div>
 

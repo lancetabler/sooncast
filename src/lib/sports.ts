@@ -56,6 +56,23 @@ export interface LeagueOverview {
   standings: StandingRow[];
   scores: ScoreGame[];
   live?: LiveBoard;
+  /** True when a primary data fetch for this league failed transiently (so an empty section
+   *  means "couldn't load", not "nothing on") — lets the UI show an honest error instead. */
+  partial?: boolean;
+}
+
+/** Run a fetch, capturing whether it FAILED transiently vs simply returned nothing. A 4xx is
+ *  treated as "this league has no such endpoint/data" (not a failure) to avoid false alarms. */
+async function settle<T>(p: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean }> {
+  try {
+    return { value: await p, failed: false };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    // 404/410 etc. = "this league has no such endpoint/data" (not an outage). But 429/408/425 are
+    // transient (rate-limit / request-timeout / too-early), so surface those as a real failure.
+    const soft = /HTTP 4\d\d/.test(msg) && !/HTTP (429|408|425)/.test(msg);
+    return { value: fallback, failed: !soft };
+  }
 }
 
 // Labels come from the catalogs (single source of truth) with a few extras for refs
@@ -81,63 +98,53 @@ function kindOf(ref: string): LeagueKind {
   return "team";
 }
 
+// These primary fetchers now let errors propagate; buildLeague wraps each in settle() so a
+// transient failure surfaces as `partial` instead of masquerading as an empty section.
 async function fetchNews(ref: string): Promise<NewsItem[]> {
-  try {
-    const data = await fetchJSON<any>(`${SITE}/${ref}/news`);
-    return (data?.articles || []).slice(0, 5).map((a: any) => ({
-      headline: a.headline,
-      description: a.description,
-      link: a.links?.web?.href,
-      image: a.images?.[0]?.url,
-    }));
-  } catch {
-    return [];
-  }
+  const data = await fetchJSON<any>(`${SITE}/${ref}/news`);
+  return (data?.articles || []).slice(0, 5).map((a: any) => ({
+    headline: a.headline,
+    description: a.description,
+    link: a.links?.web?.href,
+    image: a.images?.[0]?.url,
+  }));
 }
 
 // Team leagues AND racing series share this endpoint; racing entries carry an
 // `athlete` (driver) instead of a `team`, nested under `children`.
 async function fetchStandings(ref: string, favorites: Set<string>): Promise<StandingRow[]> {
-  try {
-    const data = await fetchJSON<any>(`${WEB}/${ref}/standings?region=us&lang=en&contentorigin=espn&type=0&level=1`);
-    const entries: any[] = data?.standings?.entries || (data?.children || []).flatMap((c: any) => c?.standings?.entries || []);
-    const stat = (e: any, ...names: string[]) => {
-      for (const n of names) {
-        const s = (e.stats || []).find((x: any) => x.name === n || x.type === n || x.abbreviation === n);
-        if (s && (s.displayValue || s.value != null)) return s.displayValue ?? String(s.value ?? "");
-      }
-      return undefined;
+  const data = await fetchJSON<any>(`${WEB}/${ref}/standings?region=us&lang=en&contentorigin=espn&type=0&level=1`);
+  const entries: any[] = data?.standings?.entries || (data?.children || []).flatMap((c: any) => c?.standings?.entries || []);
+  const stat = (e: any, ...names: string[]) => {
+    for (const n of names) {
+      const s = (e.stats || []).find((x: any) => x.name === n || x.type === n || x.abbreviation === n);
+      if (s && (s.displayValue || s.value != null)) return s.displayValue ?? String(s.value ?? "");
+    }
+    return undefined;
+  };
+  return entries.slice(0, 20).map((e, i) => {
+    const name = e.team?.displayName ?? e.team?.name ?? e.athlete?.displayName ?? "—";
+    return {
+      rank: Number(stat(e, "rank", "playoffSeed") ?? i + 1) || i + 1,
+      team: name,
+      logo: e.team?.logos?.[0]?.href,
+      record: stat(e, "overall", "total", "record"),
+      points: stat(e, "points", "championshipPts"),
+      highlight: favorites.has(name),
     };
-    return entries.slice(0, 20).map((e, i) => {
-      const name = e.team?.displayName ?? e.team?.name ?? e.athlete?.displayName ?? "—";
-      return {
-        rank: Number(stat(e, "rank", "playoffSeed") ?? i + 1) || i + 1,
-        team: name,
-        logo: e.team?.logos?.[0]?.href,
-        record: stat(e, "overall", "total", "record"),
-        points: stat(e, "points", "championshipPts"),
-        highlight: favorites.has(name),
-      };
-    });
-  } catch {
-    return [];
-  }
+  });
 }
 
 // Tennis has world rankings instead of league standings.
 async function fetchRankings(ref: string): Promise<StandingRow[]> {
-  try {
-    const data = await fetchJSON<any>(`${SITE}/${ref}/rankings`);
-    const ranks: any[] = data?.rankings?.[0]?.ranks || [];
-    return ranks.slice(0, 20).map((r: any, i: number) => ({
-      rank: Number(r.current) || i + 1,
-      team: r.athlete?.displayName ?? "—",
-      points: r.points != null ? String(Math.round(r.points)) : undefined,
-      highlight: false,
-    }));
-  } catch {
-    return [];
-  }
+  const data = await fetchJSON<any>(`${SITE}/${ref}/rankings`);
+  const ranks: any[] = data?.rankings?.[0]?.ranks || [];
+  return ranks.slice(0, 20).map((r: any, i: number) => ({
+    rank: Number(r.current) || i + 1,
+    team: r.athlete?.displayName ?? "—",
+    points: r.points != null ? String(Math.round(r.points)) : undefined,
+    highlight: false,
+  }));
 }
 
 function ymd(d: Date) {
@@ -149,86 +156,78 @@ function stateOf(ev: any): ScoreGame["state"] {
 }
 
 async function fetchScores(ref: string, favorites: Set<string>): Promise<ScoreGame[]> {
-  try {
-    const from = new Date(Date.now() - 2 * 86400_000);
-    const to = new Date(Date.now() + 4 * 86400_000);
-    // Short cache so the Scores tab's live polling actually reflects moving scores.
-    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=100`, 12000, 25);
-    const teamOf = (c: any): ScoreTeam | undefined =>
-      c
-        ? {
-            abbr: c.team?.abbreviation ?? c.team?.shortDisplayName ?? "",
-            name: c.team?.displayName ?? c.team?.shortDisplayName ?? "",
-            score: c.score ?? "",
-            logo: c.team?.logo ?? c.team?.logos?.[0]?.href,
-          }
-        : undefined;
+  const from = new Date(Date.now() - 2 * 86400_000);
+  const to = new Date(Date.now() + 4 * 86400_000);
+  // Short cache so the Scores tab's live polling actually reflects moving scores.
+  const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=100`, 12000, 25);
+  const teamOf = (c: any): ScoreTeam | undefined =>
+    c
+      ? {
+          abbr: c.team?.abbreviation ?? c.team?.shortDisplayName ?? "",
+          name: c.team?.displayName ?? c.team?.shortDisplayName ?? "",
+          score: c.score ?? "",
+          logo: c.team?.logo ?? c.team?.logos?.[0]?.href,
+        }
+      : undefined;
 
-    const games: ScoreGame[] = (data?.events || []).map((ev: any) => {
-      const comp = ev?.competitions?.[0];
-      const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
-      const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
-      return {
-        id: String(ev?.id ?? ev?.uid ?? ev?.date ?? ""),
-        state: stateOf(ev),
-        detail: ev?.status?.type?.shortDetail ?? "",
-        startISO: ev?.date ?? "",
-        home: teamOf(home),
-        away: teamOf(away),
-        favorite: favorites.has(home?.team?.displayName ?? "\0") || favorites.has(away?.team?.displayName ?? "\0"),
-      };
-    });
+  const games: ScoreGame[] = (data?.events || []).map((ev: any) => {
+    const comp = ev?.competitions?.[0];
+    const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+    const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+    return {
+      id: String(ev?.id ?? ev?.uid ?? ev?.date ?? ""),
+      state: stateOf(ev),
+      detail: ev?.status?.type?.shortDetail ?? "",
+      startISO: ev?.date ?? "",
+      home: teamOf(home),
+      away: teamOf(away),
+      favorite: favorites.has(home?.team?.displayName ?? "\0") || favorites.has(away?.team?.displayName ?? "\0"),
+    };
+  });
 
-    // Live games first, then upcoming (soonest), then recent finals; favorites float up within a group.
-    const rank = (g: ScoreGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
-    games.sort((a, b) => {
-      if (rank(a) !== rank(b)) return rank(a) - rank(b);
-      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
-      const ta = new Date(a.startISO).getTime();
-      const tb = new Date(b.startISO).getTime();
-      return rank(a) === 2 ? tb - ta : ta - tb; // finals newest-first, others soonest-first
-    });
-    return games.slice(0, 12);
-  } catch {
-    return [];
-  }
+  // Live games first, then upcoming (soonest), then recent finals; favorites float up within a group.
+  const rank = (g: ScoreGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
+  games.sort((a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    const ta = new Date(a.startISO).getTime();
+    const tb = new Date(b.startISO).getTime();
+    return rank(a) === 2 ? tb - ta : ta - tb; // finals newest-first, others soonest-first
+  });
+  return games.slice(0, 12);
 }
 
 // Races, golf tournaments, fight cards — one-name events instead of home/away games.
 async function fetchEventCards(ref: string): Promise<ScoreGame[]> {
-  try {
-    const from = new Date(Date.now() - 8 * 86400_000);
-    const to = new Date(Date.now() + 30 * 86400_000);
-    const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=50`, 12000, 25);
-    const cards: ScoreGame[] = (data?.events || []).map((ev: any) => {
-      const state = stateOf(ev);
-      const comp = ev?.competitions?.[0];
-      const winner =
-        state === "post"
-          ? comp?.competitors?.find((c: any) => c?.winner)?.athlete?.displayName ??
-            comp?.competitors?.find((c: any) => c?.winner)?.team?.displayName
-          : undefined;
-      return {
-        id: String(ev?.id ?? ev?.uid ?? ev?.date ?? ""),
-        state,
-        detail: ev?.status?.type?.shortDetail ?? "",
-        startISO: ev?.date ?? "",
-        name: ev?.name ?? ev?.shortName ?? "Event",
-        winner: winner || undefined,
-        favorite: false,
-      };
-    });
-    const rank = (g: ScoreGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
-    cards.sort((a, b) => {
-      if (rank(a) !== rank(b)) return rank(a) - rank(b);
-      const ta = new Date(a.startISO).getTime();
-      const tb = new Date(b.startISO).getTime();
-      return rank(a) === 2 ? tb - ta : ta - tb;
-    });
-    return cards.slice(0, 6);
-  } catch {
-    return [];
-  }
+  const from = new Date(Date.now() - 8 * 86400_000);
+  const to = new Date(Date.now() + 30 * 86400_000);
+  const data = await fetchJSON<any>(`${SITE}/${ref}/scoreboard?dates=${ymd(from)}-${ymd(to)}&limit=50`, 12000, 25);
+  const cards: ScoreGame[] = (data?.events || []).map((ev: any) => {
+    const state = stateOf(ev);
+    const comp = ev?.competitions?.[0];
+    const winner =
+      state === "post"
+        ? comp?.competitors?.find((c: any) => c?.winner)?.athlete?.displayName ??
+          comp?.competitors?.find((c: any) => c?.winner)?.team?.displayName
+        : undefined;
+    return {
+      id: String(ev?.id ?? ev?.uid ?? ev?.date ?? ""),
+      state,
+      detail: ev?.status?.type?.shortDetail ?? "",
+      startISO: ev?.date ?? "",
+      name: ev?.name ?? ev?.shortName ?? "Event",
+      winner: winner || undefined,
+      favorite: false,
+    };
+  });
+  const rank = (g: ScoreGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
+  cards.sort((a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    const ta = new Date(a.startISO).getTime();
+    const tb = new Date(b.startISO).getTime();
+    return rank(a) === 2 ? tb - ta : ta - tb;
+  });
+  return cards.slice(0, 6);
 }
 
 // ---- Live leaderboards (free, no-key feeds; fetched with cache disabled) ----
@@ -342,18 +341,12 @@ async function motogpLeague(cls: string): Promise<LeagueOverview> {
     })
     .map((r) => {
       const t = new Date(r.start).getTime();
-      const state: ScoreGame["state"] = now < t ? "pre" : now < t + 2 * 3600_000 ? "in" : "post";
-      return {
-        id: r.id,
-        state,
-        detail:
-          state === "post"
-            ? "Finished"
-            : new Date(r.start).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
-        startISO: r.start,
-        name: r.title,
-        favorite: false,
-      };
+      const dateStr = new Date(r.start).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+      // No live timing on this path — don't fake a red "LIVE" window. Just upcoming vs done,
+      // and only call it "Finished" once it's comfortably past its start (races can run long / be delayed).
+      const state: ScoreGame["state"] = now < t ? "pre" : "post";
+      const detail = state === "pre" ? dateStr : now > t + 6 * 3600_000 ? "Finished" : dateStr;
+      return { id: r.id, state, detail, startISO: r.start, name: r.title, favorite: false };
     })
     .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime())
     .slice(0, 6);
@@ -361,19 +354,15 @@ async function motogpLeague(cls: string): Promise<LeagueOverview> {
 }
 
 async function fetchF1Standings(): Promise<StandingRow[]> {
-  try {
-    const data = await fetchJSON<any>("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
-    const list: any[] = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
-    return list.slice(0, 20).map((d) => ({
-      rank: Number(d.position) || 0,
-      team: `${(d.Driver?.givenName ?? "")[0] ?? ""}. ${d.Driver?.familyName ?? ""}`.trim(),
-      record: d.Constructors?.[0]?.name,
-      points: d.points,
-      highlight: false,
-    }));
-  } catch {
-    return [];
-  }
+  const data = await fetchJSON<any>("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
+  const list: any[] = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+  return list.slice(0, 20).map((d) => ({
+    rank: Number(d.position) || 0,
+    team: `${(d.Driver?.givenName ?? "")[0] ?? ""}. ${d.Driver?.familyName ?? ""}`.trim(),
+    record: d.Constructors?.[0]?.name,
+    points: d.points,
+    highlight: false,
+  }));
 }
 
 async function buildLeague(ref: string, favorites: Set<string>): Promise<LeagueOverview> {
@@ -382,20 +371,30 @@ async function buildLeague(ref: string, favorites: Set<string>): Promise<LeagueO
   if (ref === "racing/f1") {
     // Jolpica has the richer championship table; ESPN still supplies news + race cards.
     const [news, standings, scores, live] = await Promise.all([
-      fetchNews(ref),
-      fetchF1Standings(),
-      fetchEventCards(ref),
-      fetchF1LiveBoard(),
+      settle(fetchNews(ref), [] as NewsItem[]),
+      settle(fetchF1Standings(), [] as StandingRow[]),
+      settle(fetchEventCards(ref), [] as ScoreGame[]),
+      fetchF1LiveBoard(), // null on error — a missing live board isn't a "couldn't load"
     ]);
-    return { ref, label: "Formula 1", news, standings, scores, live: live ?? undefined };
+    return {
+      ref, label: "Formula 1",
+      news: news.value, standings: standings.value, scores: scores.value,
+      live: live ?? undefined,
+      partial: news.failed || standings.failed || scores.failed,
+    };
   }
   const [news, standings, scores, live] = await Promise.all([
-    fetchNews(ref),
-    kind === "tennis" ? fetchRankings(ref) : kind === "event" ? Promise.resolve([]) : fetchStandings(ref, favorites),
-    kind === "team" ? fetchScores(ref, favorites) : kind === "tennis" ? Promise.resolve([]) : fetchEventCards(ref),
+    settle(fetchNews(ref), [] as NewsItem[]),
+    settle(kind === "tennis" ? fetchRankings(ref) : kind === "event" ? Promise.resolve<StandingRow[]>([]) : fetchStandings(ref, favorites), [] as StandingRow[]),
+    settle(kind === "team" ? fetchScores(ref, favorites) : kind === "tennis" ? Promise.resolve<ScoreGame[]>([]) : fetchEventCards(ref), [] as ScoreGame[]),
     ref in NASCAR_SERIES ? fetchNascarLiveBoard(ref) : Promise.resolve(null),
   ]);
-  return { ref, label: labelFor(ref), news, standings, scores, live: live ?? undefined };
+  return {
+    ref, label: labelFor(ref),
+    news: news.value, standings: standings.value, scores: scores.value,
+    live: live ?? undefined,
+    partial: news.failed || standings.failed || scores.failed,
+  };
 }
 
 /** Build the Scores overview for every league the user follows (team, racing, tennis, golf, MMA, …). */
@@ -446,9 +445,11 @@ async function tsdbResults(ref: string): Promise<ScoreGame[]> {
     const now = Date.now();
     return evs.slice(0, 6).map((e) => {
       const t = new Date(e.start).getTime();
+      // Community data with no result feed — keep it "upcoming" until comfortably past start
+      // rather than flipping to a (scoreless) "done" the instant the listed time passes.
       return {
         id: e.extId,
-        state: (now < t ? "pre" : "post") as ScoreGame["state"],
+        state: (now < t + 3 * 3600_000 ? "pre" : "post") as ScoreGame["state"],
         detail: new Date(e.start).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
         startISO: e.start,
         name: e.title,

@@ -7,7 +7,7 @@ function ymd(d: Date) {
 }
 
 // Networks / streaming services carrying a game — "where to watch".
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function broadcastsOf(comp: any): string | undefined {
   const list = comp?.broadcasts;
   if (!Array.isArray(list) || !list.length) return undefined;
@@ -18,7 +18,7 @@ function broadcastsOf(comp: any): string | undefined {
   return uniq.length ? uniq.join(", ") : undefined;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function normalizeEvent(e: any, leagueName: string): NormalizedEvent | null {
   const start = e?.date || e?.startDate;
   if (!start) return null;
@@ -143,26 +143,32 @@ export async function leagueTeams(ref: string): Promise<CatalogItem[]> {
     );
 }
 
-// Motorsport: one race per day per series, so we key every race by its UTC date and give
-// it a STABLE date-based extId. The full season comes from leagues[].calendar (no broadcast);
-// the scoreboard supplies richer near-term data (real name, venue, and the TV/streaming
-// broadcast) which we overlay on the same date — so a race upgrades to show its exact channel
-// (e.g. "📺 TNT, HBO Max") as the date nears, updating one row instead of creating a duplicate.
+// Motorsport: one race per weekend per series. The full season comes from
+// leagues[].calendar (dates + labels, no broadcast); the scoreboard supplies richer
+// near-term data (real start time, venue, TV/streaming channel). We key every race by
+// the calendar day and give it a STABLE date-based extId, then overlay the matching
+// scoreboard entry onto the NEAREST calendar day (not its own UTC date). That last part
+// matters: a Sunday-night US race (green flag ~00:30Z Monday) has a Monday UTC date but a
+// Sunday calendar day — keying both by raw UTC date produced two rows (a midnight phantom
+// + the real race). Matching to the nearest calendar day collapses them to one row that
+// updates in place and shows the exact channel (e.g. "📺 TNT, HBO Max") as the date nears.
 async function fetchRacingSeason(ref: string): Promise<NormalizedEvent[]> {
   const from = new Date(Date.now() - 2 * 86400_000);
   const to = new Date(Date.now() + 200 * 86400_000);
   const data = await fetchJSON<any>(`${BASE}/${ref}/scoreboard?limit=1000&dates=${ymd(from)}-${ymd(to)}`);
   const leagueName = data?.leagues?.[0]?.name || "";
   const refKey = ref.replace(/\//g, "-");
-  const byDate = new Map<string, NormalizedEvent>();
 
   // Base layer: the full published calendar (dates + labels, no broadcast).
+  const cal: Array<{ key: string; time: number }> = [];
+  const byKey = new Map<string, NormalizedEvent>();
   for (const c of data?.leagues?.[0]?.calendar || []) {
     if (!c?.startDate) continue;
     const d = new Date(c.startDate);
     if (Number.isNaN(d.getTime())) continue;
     const key = ymd(d);
-    byDate.set(key, {
+    cal.push({ key, time: d.getTime() });
+    byKey.set(key, {
       extId: `espn-${refKey}-${key}`,
       title: c.label || leagueName || "Race",
       start: d.toISOString(),
@@ -170,16 +176,31 @@ async function fetchRacingSeason(ref: string): Promise<NormalizedEvent[]> {
       note: leagueName || undefined,
     });
   }
-  // Overlay: richer scoreboard entries win on their date (carry venue + broadcast channel).
+
+  // Overlay: each scoreboard entry (venue + broadcast + real start) supersedes the calendar
+  // day it belongs to — matched by proximity (±~2 days) so a cross-midnight UTC date still lands
+  // on the right race instead of spawning a duplicate.
+  const MATCH_WINDOW = 2 * 86400_000 + 1;
+  const overlaid = new Set<string>();
   for (const e of data?.events || []) {
     const n = normalizeEvent(e, leagueName);
     if (!n) continue;
-    const key = ymd(new Date(n.start));
-    byDate.set(key, { ...n, extId: `espn-${refKey}-${key}` });
+    const t = new Date(n.start).getTime();
+    let key = ymd(new Date(n.start));
+    let best = MATCH_WINDOW;
+    for (const c of cal) {
+      const diff = Math.abs(c.time - t);
+      if (diff < best) { best = diff; key = c.key; }
+    }
+    // Same-weekend doubleheader against a coarse (one-entry) calendar: two scoreboard events
+    // would snap to the same day — don't clobber the first; keep the second on its own UTC date.
+    if (overlaid.has(key)) key = ymd(new Date(n.start));
+    overlaid.add(key);
+    byKey.set(key, { ...n, extId: `espn-${refKey}-${key}` });
   }
 
   const cutoff = Date.now() - 2 * 86400_000;
-  return [...byDate.values()].filter((n) => new Date(n.start).getTime() >= cutoff);
+  return [...byKey.values()].filter((n) => new Date(n.start).getTime() >= cutoff);
 }
 
 export const espn: SourceProvider = {

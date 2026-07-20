@@ -9,7 +9,7 @@ import type { ClientEvent } from "@/lib/client/types";
 type View = "upcoming" | "calendar" | "scores" | "discover" | "profile";
 
 export function CommandPalette({
-  open, onOpenChange, events, onNavigate, onNew, onSettings, onOpenEvent,
+  open, onOpenChange, events, onNavigate, onNew, onSettings, onOpenEvent, now,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -18,9 +18,10 @@ export function CommandPalette({
   onNew: () => void;
   onSettings: () => void;
   onOpenEvent: (e: ClientEvent) => void;
+  now: number;
 }) {
   const upcoming = events
-    .filter((e) => new Date(e.start).getTime() > Date.now() - 3 * 3600_000)
+    .filter((e) => new Date(e.start).getTime() > now - 3 * 3600_000)
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
     .slice(0, 50);
 

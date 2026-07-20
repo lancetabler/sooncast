@@ -6,18 +6,18 @@ import { serializeEvent } from "@/lib/serialize";
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   categoryId: z.string().nullable().optional(),
-  start: z.string().min(10).optional(),
+  start: z.string().min(10).refine((s) => !Number.isNaN(Date.parse(s)), "Invalid start date").optional(),
   allDay: z.boolean().optional(),
   durationMin: z.number().int().min(0).max(100000).optional(),
   freq: z.enum(["none", "daily", "weekly", "biweekly", "monthly"]).optional(),
-  until: z.string().nullable().optional(),
+  until: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid until date").nullable().optional(),
   location: z.string().max(200).nullable().optional(),
   url: z.string().max(500).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),
   reminders: z.array(z.number().int().min(0).max(525600)).optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
   countUp: z.boolean().optional(),
-  watchedAt: z.string().nullable().optional(),
+  watchedAt: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid watchedAt date").nullable().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };

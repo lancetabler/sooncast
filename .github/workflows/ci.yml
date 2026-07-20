@@ -21,7 +21,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # Use `npm install` (not `npm ci`): the lockfile is generated on Windows and omits the
+      # transitive deps of the wasm fallback (@tailwindcss/oxide-wasm32-wasi → @emnapi/*), which
+      # Linux's strict `npm ci` rejects. `npm install` respects locked versions and heals the gap.
+      - run: npm install --no-audit --no-fund
       - name: Prisma generate
         run: npx prisma generate
       - name: Typecheck

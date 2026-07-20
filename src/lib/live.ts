@@ -29,26 +29,33 @@ export function scoreString(s: LiveStatus): string | null {
   return `${s.away.abbr} ${s.away.score}-${s.home.score} ${s.home.abbr}`;
 }
 
-/** Fetch ESPN status/score for the given events, grouping API calls by league+date. */
+const DAY_MS = 86400_000;
+
+/** Fetch ESPN status/score for the given events, grouping API calls by league.
+ *  Queries a ±1-day range because ESPN buckets games by US-Eastern date, so a US
+ *  primetime game (next-day UTC) would be missed by a single UTC-date query. The
+ *  15s cache keeps live scores/alerts current (matching the Scores tab). */
 export async function getLiveStatuses(items: LiveQuery[]): Promise<Record<string, LiveStatus>> {
-  const groups = new Map<string, { leagueRef: string; date: string; items: { eventId: string; id: string }[] }>();
+  const groups = new Map<string, { leagueRef: string; min: Date; max: Date; items: { eventId: string; id: string }[] }>();
   for (const it of items) {
     const id = espnId(it.sourceExtId);
     const leagueRef = (it.followRef || "").split("/teams/")[0];
     if (!id || !leagueRef) continue;
-    const date = ymd(it.start);
-    const key = `${leagueRef}@${date}`;
-    if (!groups.has(key)) groups.set(key, { leagueRef, date, items: [] });
-    groups.get(key)!.items.push({ eventId: it.eventId, id });
+    const g = groups.get(leagueRef) ?? { leagueRef, min: it.start, max: it.start, items: [] };
+    if (it.start < g.min) g.min = it.start;
+    if (it.start > g.max) g.max = it.start;
+    g.items.push({ eventId: it.eventId, id });
+    groups.set(leagueRef, g);
   }
 
   const result: Record<string, LiveStatus> = {};
   await Promise.all(
     [...groups.values()].map(async (g) => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = await fetchJSON<any>(`${BASE}/${g.leagueRef}/scoreboard?dates=${g.date}&limit=1000`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const range = `${ymd(new Date(g.min.getTime() - DAY_MS))}-${ymd(new Date(g.max.getTime() + DAY_MS))}`;
+         
+        const data = await fetchJSON<any>(`${BASE}/${g.leagueRef}/scoreboard?dates=${range}&limit=1000`, 12000, 15);
+         
         const byId = new Map<string, any>();
         for (const ev of data?.events || []) byId.set(String(ev.id), ev);
         for (const it of g.items) {
@@ -56,9 +63,9 @@ export async function getLiveStatuses(items: LiveQuery[]): Promise<Record<string
           const st = ev?.status?.type;
           if (!st) continue;
           const comp = ev?.competitions?.[0];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
           result[it.eventId] = {
             state: st.state,

@@ -6,11 +6,11 @@ import { serializeEvent } from "@/lib/serialize";
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
   categoryId: z.string().nullable().optional(),
-  start: z.string().datetime({ offset: true }).or(z.string().min(10)),
+  start: z.string().datetime({ offset: true }).or(z.string().min(10)).refine((s) => !Number.isNaN(Date.parse(s)), "Invalid start date"),
   allDay: z.boolean().optional(),
   durationMin: z.number().int().min(0).max(100000).optional(),
   freq: z.enum(["none", "daily", "weekly", "biweekly", "monthly"]).optional(),
-  until: z.string().nullable().optional(),
+  until: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid until date").nullable().optional(),
   location: z.string().max(200).nullable().optional(),
   url: z.string().max(500).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bookmark, CalendarDays, CalendarRange, ChevronDown, Compass, LayoutGrid, ListChecks, Plus, RefreshCw, Search, Settings2, Sparkles, Trophy, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
-import { registerServiceWorker, setBadge } from "@/lib/client/push";
+import { registerServiceWorker, setBadge, ensurePushSubscription } from "@/lib/client/push";
 import { usePullToRefresh } from "@/lib/client/usePullToRefresh";
 import { haptic } from "@/lib/client/haptics";
 import { occurrences } from "@/lib/client/occurrences";
@@ -123,10 +123,15 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   const [lens, setLens] = useState<Lens>("today");
 
   useEffect(() => {
+    // Post-mount read of persisted prefs. Must stay in an effect (not lazy state) so the
+    // server-rendered defaults match hydration — reading localStorage during render would
+    // mismatch. setState here is intentional.
     try {
       const raw = localStorage.getItem("radarr_views");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setSavedViews(JSON.parse(raw));
       const l = localStorage.getItem(LENS_KEY);
+       
       if (l === "today" || l === "date" || l === "category") setLens(l);
     } catch {
       /* ignore */
@@ -229,10 +234,14 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     };
   }, []);
 
-  // register SW + first-run onboarding
+  // register SW + self-heal push subscription + first-run onboarding
   useEffect(() => {
     registerServiceWorker();
+    // If notifications are already granted, silently re-arm the subscription (iOS rotates them).
+    void ensurePushSubscription();
     const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("radarr_onboarded");
+    // Post-mount first-run decision (depends on localStorage) — setState here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!onboarded && state.events.length === 0 && state.follows.length === 0) setShowOnboard(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -282,7 +291,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [view]);
 
   // poll live scores/status for ESPN games happening today
@@ -292,6 +301,8 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       .filter((e) => e.sourceProvider === "espn" && sameDay(new Date(e.start), today))
       .map((e) => e.id);
     if (!ids.length) {
+      // Clear yesterday's scores when nothing is live today — intentional reset.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLiveMap({});
       return;
     }
@@ -592,6 +603,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         categories={state.categories}
         defaultReminders={state.user.defaultReminders}
         onSaved={refresh}
+        now={now}
       />
       <EventDetail
         event={detail}
@@ -599,6 +611,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         onOpenChange={(v) => !v && setDetail(null)}
         onEdit={editEvent}
         onChanged={refresh}
+        now={now}
       />
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
@@ -618,6 +631,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         onNew={newEvent}
         onSettings={() => setSettingsOpen(true)}
         onOpenEvent={(ev) => setDetail(ev)}
+        now={now}
       />
       <TextPromptDialog
         open={saveViewOpen}

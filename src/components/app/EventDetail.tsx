@@ -111,13 +111,14 @@ async function shareCountdown(event: ClientEvent, category: ClientCategory | und
 }
 
 export function EventDetail({
-  event, category, onOpenChange, onEdit, onChanged,
+  event, category, onOpenChange, onEdit, onChanged, now,
 }: {
   event: ClientEvent | null;
   category?: ClientCategory;
   onOpenChange: (v: boolean) => void;
   onEdit: (e: ClientEvent) => void;
   onChanged: () => void;
+  now: number;
 }) {
   if (!event) return null;
   return (
@@ -126,17 +127,17 @@ export function EventDetail({
         <SheetHeader>
           <SheetTitle className="sr-only">Event details</SheetTitle>
         </SheetHeader>
-        <DetailBody event={event} category={category} onEdit={onEdit} onChanged={onChanged} />
+        {/* Keyed per event so local state seeds cleanly on open — no state-syncing effect. */}
+        <DetailBody key={event.id} event={event} category={category} onEdit={onEdit} onChanged={onChanged} now={now} />
       </SheetContent>
     </Sheet>
   );
 }
 
-function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent; category?: ClientCategory; onEdit: (e: ClientEvent) => void; onChanged: () => void }) {
+function DetailBody({ event, category, onEdit, onChanged, now }: { event: ClientEvent; category?: ClientCategory; onEdit: (e: ClientEvent) => void; onChanged: () => void; now: number }) {
   const [weather, setWeather] = useState<{ max: number; min: number; code: number } | null>(null);
   const [watchedAt, setWatchedAt] = useState<string | null>(event.watchedAt);
   const [watchBusy, setWatchBusy] = useState(false);
-  useEffect(() => setWatchedAt(event.watchedAt), [event.id, event.watchedAt]);
 
   async function toggleWatched() {
     const next = watchedAt ? null : new Date().toISOString();
@@ -156,7 +157,6 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   const start = new Date(event.start);
   const dur = event.allDay ? 1440 : event.durationMin || 120;
   const end = new Date(start.getTime() + dur * 60000);
-  const now = Date.now();
   const diff = start.getTime() - now;
   const cd = event.countUp ? humanCountdown(now - start.getTime()) : diff > 0 ? humanCountdown(diff) : now < end.getTime() ? "LIVE NOW" : "Passed";
   const color = category?.color ?? "var(--primary)";
@@ -169,28 +169,36 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
     // Prefer the geographic tail (e.g. "Toronto, ON") over a venue name that won't geocode.
     const loc = event.location!;
     const geoQuery = loc.includes(",") ? loc.split(",").slice(-2).join(",").trim() : loc;
+    // Abort a hung request so the forecast never stays perpetually pending.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     (async () => {
       try {
-        const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geoQuery)}&count=1`).then((r) => r.json());
-        const loc = geo?.results?.[0];
-        if (!loc) return;
+        const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geoQuery)}&count=1`, { signal: ctrl.signal }).then((r) => r.json());
+        const place = geo?.results?.[0];
+        if (!place) return;
         const fc = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=auto&forecast_days=16`
+          `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=auto&forecast_days=16`,
+          { signal: ctrl.signal }
         ).then((r) => r.json());
         const idx = (fc?.daily?.time || []).indexOf(start.toISOString().slice(0, 10));
         if (idx >= 0 && active) {
           setWeather({ max: Math.round(fc.daily.temperature_2m_max[idx]), min: Math.round(fc.daily.temperature_2m_min[idx]), code: fc.daily.weather_code[idx] });
         }
       } catch {
-        /* ignore */
+        /* ignore (aborted or network error) */
       }
     })();
     return () => {
       active = false;
+      clearTimeout(timer);
+      ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.location, event.start]);
 
+  // Community-sourced schedules (TheSportsDB, public ICS calendars) aren't guaranteed accurate.
+  const isCommunity = event.sourceProvider === "thesportsdb" || event.sourceProvider === "ics";
   const watch = event.note && event.note.startsWith("📺") ? event.note.replace(/^📺\s*/, "") : null;
   const networks = watchLinks(watch);
   const service = streamingService(event);
@@ -200,13 +208,15 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   //  1. a real OTT service (F1 TV, FOX Sports, VideoPass…) — that's the way to watch;
   //  2. else the specific channel this event is on (e.g. TNT), when we know it;
   //  3. else a schedule/where-to-watch link (multi-network series like NASCAR).
-  const watchBtn: { url: string; label: string } | null =
+  // `regional` = the target is a broadcaster/channel (varies by country & blackout), not the
+  //  user's own subscription service — so we add a "check local listings" caption.
+  const watchBtn: { url: string; label: string; regional: boolean } | null =
     service?.url && !service.cta
-      ? { url: service.url, label: `Watch on ${service.name}` }
+      ? { url: service.url, label: `Watch on ${service.name}`, regional: false }
       : channelWatch?.url
-        ? { url: channelWatch.url, label: `Watch on ${channelWatch.name}` }
+        ? { url: channelWatch.url, label: `Watch on ${channelWatch.name}`, regional: true }
         : service?.url
-          ? { url: service.url, label: service.cta ?? `Watch on ${service.name}` }
+          ? { url: service.url, label: service.cta ?? `Watch on ${service.name}`, regional: true }
           : null;
 
   const rows: Array<[string, React.ReactNode]> = [
@@ -240,7 +250,7 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
   if (event.location) rows.push(["Location", event.location]);
   if (event.reminders.length) rows.push(["Reminders", event.reminders.map(reminderLabel).join(", ")]);
   if (event.sourceLabel)
-    rows.push(["Source", event.sourceProvider === "thesportsdb" ? `${event.sourceLabel} · community data` : event.sourceLabel]);
+    rows.push(["Source", isCommunity ? `${event.sourceLabel} · community data` : event.sourceLabel]);
   if (event.url)
     rows.push([
       "Link",
@@ -277,14 +287,19 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
       </div>
 
       {watchBtn && (
-        <a
-          href={watchBtn.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
-        >
-          <Play className="size-4" /> {watchBtn.label}
-        </a>
+        <div className="flex flex-col gap-1">
+          <a
+            href={watchBtn.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+          >
+            <Play className="size-4" /> {watchBtn.label}
+          </a>
+          {watchBtn.regional && (
+            <p className="text-center text-[11px] text-muted-foreground">Broadcast varies by region — check local listings.</p>
+          )}
+        </div>
       )}
 
       {event.tags.length > 0 && (
@@ -319,10 +334,10 @@ function DetailBody({ event, category, onEdit, onChanged }: { event: ClientEvent
         ))}
       </div>
 
-      {event.sourceProvider === "thesportsdb" && (
+      {isCommunity && (
         <p className="rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-          ⚠️ This schedule is community-maintained (TheSportsDB), so dates and times aren&apos;t guaranteed — double-check
-          before planning around one.
+          ⚠️ This schedule is community-maintained ({event.sourceProvider === "ics" ? "public calendar feed" : "TheSportsDB"}), so
+          dates and times aren&apos;t guaranteed — double-check before planning around one.
         </p>
       )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Share, X } from "lucide-react";
 import { isStandalone } from "@/lib/client/push";
 
@@ -14,14 +14,12 @@ const DISMISS_KEY = "radarr_install_dismissed";
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  // Derived from a stable UA; the component renders nothing until `show` flips, so no hydration risk.
+  const isIOS = useMemo(() => typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent), []);
 
   useEffect(() => {
     if (isStandalone()) return;
     if (localStorage.getItem(DISMISS_KEY)) return;
-
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    setIsIOS(ios);
 
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -32,13 +30,13 @@ export function InstallPrompt() {
 
     // iOS never fires beforeinstallprompt — show the manual hint after a beat.
     let t: ReturnType<typeof setTimeout> | undefined;
-    if (ios) t = setTimeout(() => setShow(true), 4000);
+    if (isIOS) t = setTimeout(() => setShow(true), 4000);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
       if (t) clearTimeout(t);
     };
-  }, []);
+  }, [isIOS]);
 
   function dismiss() {
     setShow(false);

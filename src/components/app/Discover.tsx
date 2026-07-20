@@ -220,7 +220,7 @@ export function Discover({
         <div className="flex items-center gap-2 p-3">
           {/* Tap the logo/name to open the league's profile (what it is + past data). */}
           <button onClick={() => setProfileItem(item)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`About ${item.label}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             {item.imageUrl ? (
               <img src={item.imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
             ) : (
@@ -260,7 +260,7 @@ export function Discover({
                 <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto overscroll-contain">
                   {filtered.map((t) => (
                     <div key={t.ref} className="flex items-center gap-2 rounded-lg bg-card px-2 py-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      { }
                       {t.imageUrl ? (
                         <img src={t.imageUrl} alt="" className="size-6 shrink-0 object-contain" />
                       ) : (

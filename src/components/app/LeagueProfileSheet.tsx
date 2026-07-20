@@ -52,7 +52,7 @@ function ProfileBody({ item }: { item: CatalogItem }) {
       {/* Identity */}
       <div className="flex items-start gap-3">
         {profile?.logo || item.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
+           
           <img src={profile?.logo || item.imageUrl} alt="" className="size-14 shrink-0 rounded-xl bg-secondary object-contain p-1" />
         ) : (
           <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-secondary text-2xl">🏟️</span>
@@ -95,6 +95,14 @@ function ProfileBody({ item }: { item: CatalogItem }) {
         </div>
       )}
 
+      {/* Community-data caveat — same signal the event sheet shows, so it's consistent everywhere. */}
+      {(item.provider === "thesportsdb" || item.provider === "ics") && (
+        <p className="rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+          ⚠️ Community-maintained data ({item.provider === "ics" ? "public calendar feed" : "TheSportsDB"}) — dates, times and
+          results aren&apos;t guaranteed.
+        </p>
+      )}
+
       {/* Loading skeletons for the data sections */}
       {!profile && !failed && <Skeleton className="h-40 rounded-xl" />}
 
@@ -109,7 +117,7 @@ function ProfileBody({ item }: { item: CatalogItem }) {
               {profile.standings.slice(0, 15).map((row) => (
                 <div key={row.team + row.rank} className="flex items-center gap-2 px-3 py-2 text-sm">
                   <span className="w-5 shrink-0 text-right text-xs text-muted-foreground">{row.rank}</span>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   {row.logo && <img src={row.logo} alt="" className="size-5 shrink-0 object-contain" />}
                   <span className="min-w-0 flex-1 truncate">{row.team}</span>
                   {row.record && <span className="tabular shrink-0 text-xs text-muted-foreground">{row.record}</span>}

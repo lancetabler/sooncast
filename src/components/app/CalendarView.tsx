@@ -47,8 +47,13 @@ export function CalendarView({
     });
     const byDay = new Map<number, Occurrence[]>();
     for (const o of occ) {
-      const d = o.start.getDate();
-      (byDay.get(d) ?? byDay.set(d, []).get(d)!).push(o);
+      // Bucket onto a cell that exists this month: use the start day when it's in-month,
+      // otherwise clamp (an occurrence spilling in from a prior month lands on day 1) so it
+      // never falls through a day-number the grid doesn't have (e.g. the 31st in February).
+      const inMonth = o.start.getFullYear() === ym.y && o.start.getMonth() === ym.m;
+      const d = inMonth ? o.start.getDate() : o.start < monthStart ? 1 : daysInMonth;
+      const day = Math.min(Math.max(d, 1), daysInMonth);
+      (byDay.get(day) ?? byDay.set(day, []).get(day)!).push(o);
     }
     return { byDay, first, daysInMonth };
   }, [events, filter, search, favoritesOnly, favoriteTeams, hideWatched, ym]);

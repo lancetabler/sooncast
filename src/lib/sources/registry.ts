@@ -4,6 +4,7 @@ import { motogp } from "./motogp";
 import { thesportsdb, tsdbConfigured } from "./thesportsdb";
 import { icsfeed } from "./icsfeed";
 import { tmdb } from "./tmdb";
+import { leagueBlurb } from "@/lib/domain/league-info";
 import type { CatalogItem, NormalizedEvent, SourceProvider } from "./types";
 
 export { leagueTeams } from "./espn";
@@ -109,17 +110,29 @@ export function featuredCatalog(): CatalogItem[] {
   ];
 }
 
-// Unified search across providers that support it.
+// Unified search across the featured catalog + providers that support live search.
 export async function unifiedSearch(query: string): Promise<CatalogItem[]> {
   const q = query.trim();
   if (q.length < 2) return [];
+  const ql = q.toLowerCase();
+
+  // Local, synchronous match over the featured catalog (racing series, event sports, leagues)
+  // by name / sublabel / plain-English blurb — otherwise searching "motogp", "wrc", "imsa",
+  // "indycar", "rally", "endurance"… returned nothing (they only showed on an empty query).
+  const local = featuredCatalog().filter((c) => {
+    const hay = `${c.label} ${c.sublabel ?? ""} ${c.description ?? ""} ${leagueBlurb(c.ref) ?? ""}`.toLowerCase();
+    return hay.includes(ql);
+  });
+
   const searchers = [espn, tmdb].filter((p) => p.search);
   const results = await Promise.allSettled(searchers.map((p) => p.search!(q)));
-  const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  // de-dupe by provider+ref
+  const remote = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+
+  // Featured catalog first (so a "motogp" search leads with MotoGP, not a team called that),
+  // then live provider results; de-dupe by provider+ref.
   const seen = new Set<string>();
   const out: CatalogItem[] = [];
-  for (const it of items) {
+  for (const it of [...local, ...remote]) {
     const k = it.provider + it.ref;
     if (seen.has(k)) continue;
     seen.add(k);

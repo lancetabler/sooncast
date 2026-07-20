@@ -129,13 +129,23 @@ export async function runFollowImport(
     // watched races — so the season reconciles to one row per race instead of duplicates.
     if (follow.provider === "espn" && follow.ref.startsWith("racing/")) {
       const keep = normalized.map((n) => `${follow.provider}:${n.extId}`);
+      // Prune ONLY inside the date span this fetch actually covered. A truncated head/tail
+      // response can't delete real races outside [minFetched, maxFetched] (they're out of range),
+      // while any stale/old-scheme duplicate sharing a fetched race's window — but not in `keep` —
+      // still gets cleaned, and end-of-season dedups with no race-count floor. Residual: a race
+      // dropped from the MIDDLE of a response (real, in-span, not in keep) would still be deleted —
+      // but these contiguous-range feeds don't gap the middle, and it self-heals on the next good
+      // sync (watched races are never touched).
+      const starts = normalized.map((n) => new Date(n.start).getTime());
+      const lo = Math.max(Math.min(...starts), Date.now() - 2 * 86400_000);
+      const hi = Math.max(...starts);
       await prisma.event
         .deleteMany({
           where: {
             userId,
             followId: follow.id,
             watchedAt: null,
-            start: { gte: new Date(Date.now() - 2 * 86400_000) },
+            start: { gte: new Date(lo), lte: new Date(hi) },
             sourceExtId: { notIn: keep },
           },
         })

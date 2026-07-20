@@ -91,7 +91,7 @@ export function Onboarding({ open, onOpenChange, onDone }: { open: boolean; onOp
                     className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${on ? "border-primary bg-primary/10" : "border-border bg-card"}`}
                   >
                     {item.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                       
                       <img src={item.imageUrl} alt="" className="size-8 shrink-0 rounded-lg object-contain" />
                     ) : (
                       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-sm">📡</span>

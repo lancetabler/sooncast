@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import * as chrono from "chrono-node";
 import { toast } from "sonner";
 import { Bell, Trash2, Wand2 } from "lucide-react";
@@ -32,19 +32,43 @@ function toTimeInput(d: Date) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function EventDialog({
-  open, onOpenChange, event, categories, defaultReminders, onSaved,
-}: {
+export function EventDialog(props: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   event: ClientEvent | null;
   categories: ClientCategory[];
   defaultReminders: number[];
   onSaved: () => void;
+  now: number;
+}) {
+  const { open, onOpenChange, event } = props;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{event ? "Edit" : "Track something"}</DialogTitle>
+        </DialogHeader>
+        {/* Mount the form only while open and key it per event, so its initial state is
+            seeded once from props — no state-syncing effect, no impure Date.now() in render. */}
+        {open && <EventForm key={event?.id ?? "new"} {...props} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EventForm({
+  onOpenChange, event, categories, defaultReminders, onSaved, now,
+}: {
+  onOpenChange: (v: boolean) => void;
+  event: ClientEvent | null;
+  categories: ClientCategory[];
+  defaultReminders: number[];
+  onSaved: () => void;
+  now: number;
 }) {
   const isEdit = !!event;
-  const initial = useMemo(() => {
-    const base = event ? new Date(event.start) : new Date(Date.now() + 3600_000);
+  const [f, setF] = useState(() => {
+    const base = event ? new Date(event.start) : new Date(now + 3600_000);
     return {
       title: event?.title ?? "",
       categoryId: event?.categoryId ?? categories.find((c) => c.slug === "personal")?.id ?? categories[0]?.id ?? null,
@@ -59,13 +83,10 @@ export function EventDialog({
       url: event?.url ?? "",
       note: event?.note ?? "",
     };
-  }, [event, categories, defaultReminders]);
-
-  const [f, setF] = useState(initial);
+  });
   const [busy, setBusy] = useState(false);
   const [quick, setQuick] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  useEffect(() => setF(initial), [initial]);
 
   function applyQuick() {
     const text = quick.trim();
@@ -139,157 +160,151 @@ export function EventDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit" : "Track something"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4">
-          {!isEdit && (
-            <div className="flex gap-2 rounded-xl border border-dashed border-border bg-secondary/40 p-2">
-              <Input
-                value={quick}
-                onChange={(e) => setQuick(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyQuick(); } }}
-                placeholder="Type it: “Bruins friday 7pm”"
-                className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-              />
-              <Button type="button" variant="secondary" size="sm" onClick={applyQuick} disabled={!quick.trim()}>
-                <Wand2 data-icon="inline-start" /> Fill
-              </Button>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ev-title">What is it?</Label>
-            <Input id="ev-title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="e.g. British Grand Prix" autoFocus />
+    <>
+      <div className="flex flex-col gap-4">
+        {!isEdit && (
+          <div className="flex gap-2 rounded-xl border border-dashed border-border bg-secondary/40 p-2">
+            <Input
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyQuick(); } }}
+              placeholder="Type it: “Bruins friday 7pm”"
+              className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+            />
+            <Button type="button" variant="secondary" size="sm" onClick={applyQuick} disabled={!quick.trim()}>
+              <Wand2 data-icon="inline-start" /> Fill
+            </Button>
           </div>
+        )}
 
-          <div className="flex flex-col gap-2">
-            <Label>Category</Label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((c) => {
-                const on = f.categoryId === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setF({ ...f, categoryId: c.id })}
-                    className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition"
-                    style={{
-                      borderColor: on ? c.color : "var(--border)",
-                      background: on ? `color-mix(in oklch, ${c.color} 18%, transparent)` : "transparent",
-                      color: on ? "var(--foreground)" : "var(--muted-foreground)",
-                    }}
-                  >
-                    <span>{c.emoji}</span>
-                    {c.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ev-title">What is it?</Label>
+          <Input id="ev-title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="e.g. British Grand Prix" autoFocus />
+        </div>
 
-          <div className="flex gap-3">
-            <div className="flex flex-1 flex-col gap-2">
-              <Label htmlFor="ev-date">Date</Label>
-              <Input id="ev-date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
-            </div>
-            {!f.allDay && (
-              <div className="flex flex-1 flex-col gap-2">
-                <Label htmlFor="ev-time">Time</Label>
-                <Input id="ev-time" type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} />
-              </div>
-            )}
-          </div>
-
-          <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm">All-day</span>
-            <Switch checked={f.allDay} onCheckedChange={(v) => setF({ ...f, allDay: v })} />
-          </label>
-
-          <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-            <span className="flex flex-col">
-              <span className="text-sm">Count up</span>
-              <span className="text-xs text-muted-foreground">Show time since (anniversaries, milestones)</span>
-            </span>
-            <Switch checked={f.countUp} onCheckedChange={(v) => setF({ ...f, countUp: v })} />
-          </label>
-
-          <div className="flex flex-col gap-2">
-            <Label>Repeats</Label>
-            <ToggleGroup
-              type="single"
-              value={f.freq}
-              onValueChange={(v) => v && setF({ ...f, freq: v })}
-              variant="outline"
-              className="w-full"
-            >
-              {FREQS.map(([v, l]) => (
-                <ToggleGroupItem key={v} value={v} className="flex-1 text-xs">
-                  {l}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label className="flex items-center gap-1.5">
-              <Bell className="size-3.5" /> Reminders
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {REMINDER_PRESETS.map((min) => {
-                const on = f.reminders.includes(min);
-                return (
-                  <button
-                    key={min}
-                    type="button"
-                    onClick={() => toggleReminder(min)}
-                    className={`rounded-full border px-3 py-1.5 text-xs transition ${on ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground"}`}
-                  >
-                    {reminderLabel(min)}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              On iPhone, add the event to your calendar for alerts when Radarr is closed — or enable push in Settings.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ev-tags">Tags <span className="text-muted-foreground">(optional, comma-separated)</span></Label>
-            <Input id="ev-tags" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="watch-live, playoffs, must-see" />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ev-loc">Location <span className="text-muted-foreground">(optional)</span></Label>
-            <Input id="ev-loc" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="Silverstone" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ev-url">Link <span className="text-muted-foreground">(optional)</span></Label>
-            <Input id="ev-url" value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder="Where to watch / buy" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ev-note">Notes <span className="text-muted-foreground">(optional)</span></Label>
-            <Textarea id="ev-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Anything to remember" />
+        <div className="flex flex-col gap-2">
+          <Label>Category</Label>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((c) => {
+              const on = f.categoryId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setF({ ...f, categoryId: c.id })}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition"
+                  style={{
+                    borderColor: on ? c.color : "var(--border)",
+                    background: on ? `color-mix(in oklch, ${c.color} 18%, transparent)` : "transparent",
+                    color: on ? "var(--foreground)" : "var(--muted-foreground)",
+                  }}
+                >
+                  <span>{c.emoji}</span>
+                  {c.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          {isEdit ? (
-            <Button variant="ghost" onClick={() => setConfirmDelete(true)} className="text-destructive hover:text-destructive">
-              <Trash2 data-icon="inline-start" /> Delete
-            </Button>
-          ) : (
-            <span />
+        <div className="flex gap-3">
+          <div className="flex flex-1 flex-col gap-2">
+            <Label htmlFor="ev-date">Date</Label>
+            <Input id="ev-date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+          </div>
+          {!f.allDay && (
+            <div className="flex flex-1 flex-col gap-2">
+              <Label htmlFor="ev-time">Time</Label>
+              <Input id="ev-time" type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} />
+            </div>
           )}
-          <Button onClick={save} disabled={busy}>
-            {busy ? "Saving…" : isEdit ? "Save" : "Add to Radarr"}
+        </div>
+
+        <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+          <span className="text-sm">All-day</span>
+          <Switch checked={f.allDay} onCheckedChange={(v) => setF({ ...f, allDay: v })} />
+        </label>
+
+        <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+          <span className="flex flex-col">
+            <span className="text-sm">Count up</span>
+            <span className="text-xs text-muted-foreground">Show time since (anniversaries, milestones)</span>
+          </span>
+          <Switch checked={f.countUp} onCheckedChange={(v) => setF({ ...f, countUp: v })} />
+        </label>
+
+        <div className="flex flex-col gap-2">
+          <Label>Repeats</Label>
+          <ToggleGroup
+            type="single"
+            value={f.freq}
+            onValueChange={(v) => v && setF({ ...f, freq: v })}
+            variant="outline"
+            className="w-full"
+          >
+            {FREQS.map(([v, l]) => (
+              <ToggleGroupItem key={v} value={v} className="flex-1 text-xs">
+                {l}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label className="flex items-center gap-1.5">
+            <Bell className="size-3.5" /> Reminders
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {REMINDER_PRESETS.map((min) => {
+              const on = f.reminders.includes(min);
+              return (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => toggleReminder(min)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${on ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground"}`}
+                >
+                  {reminderLabel(min)}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            On iPhone, add the event to your calendar for alerts when Radarr is closed — or enable push in Settings.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ev-tags">Tags <span className="text-muted-foreground">(optional, comma-separated)</span></Label>
+          <Input id="ev-tags" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="watch-live, playoffs, must-see" />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ev-loc">Location <span className="text-muted-foreground">(optional)</span></Label>
+          <Input id="ev-loc" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="Silverstone" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ev-url">Link <span className="text-muted-foreground">(optional)</span></Label>
+          <Input id="ev-url" value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder="Where to watch / buy" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ev-note">Notes <span className="text-muted-foreground">(optional)</span></Label>
+          <Textarea id="ev-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Anything to remember" />
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2 sm:justify-between">
+        {isEdit ? (
+          <Button variant="ghost" onClick={() => setConfirmDelete(true)} className="text-destructive hover:text-destructive">
+            <Trash2 data-icon="inline-start" /> Delete
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        ) : (
+          <span />
+        )}
+        <Button onClick={save} disabled={busy}>
+          {busy ? "Saving…" : isEdit ? "Save" : "Add to Radarr"}
+        </Button>
+      </DialogFooter>
 
       <ConfirmDialog
         open={confirmDelete}
@@ -299,6 +314,6 @@ export function EventDialog({
         confirmLabel="Delete"
         onConfirm={remove}
       />
-    </Dialog>
+    </>
   );
 }

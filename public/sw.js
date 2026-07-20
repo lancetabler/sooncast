@@ -75,6 +75,9 @@ self.addEventListener("push", (e) => {
   const options = {
     body: n.body || "",
     tag: n.tag || "radar",
+    // Re-alert when a same-tag notification is replaced (e.g. a throttled score bump on the
+    // stable `score-<id>` tag) instead of updating the tray silently.
+    renotify: true,
     icon: "/icon.svg",
     badge: "/icon.svg",
     data: { url: n.navigate || n.url || "/" },
@@ -86,9 +89,24 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const target = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const c of list) if ("focus" in c) return c.focus();
+    (async () => {
+      let sameOrigin = false;
+      try { sameOrigin = new URL(target, self.location.origin).origin === self.location.origin; } catch { sameOrigin = false; }
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const client = list.find((c) => "focus" in c);
+      if (client) {
+        await client.focus();
+        // Actually take the user to the target: navigate the focused tab for an in-app route,
+        // or open a new window for an external watch link (cross-origin can't be navigated from a SW).
+        if (target && target !== "/") {
+          if (sameOrigin && "navigate" in client) {
+            try { await client.navigate(target); return; } catch { /* fall through to openWindow */ }
+          }
+          if (self.clients.openWindow) { await self.clients.openWindow(target); return; }
+        }
+        return;
+      }
       if (self.clients.openWindow) return self.clients.openWindow(target);
-    })
+    })()
   );
 });

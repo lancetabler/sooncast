@@ -59,6 +59,39 @@ describe("recurrence", () => {
     expect(advance(d, "none")).toBeNull();
   });
 
+  it("monthly recurrence clamps the day and never skips a month", () => {
+    // Jan 31 → Feb 28 → Mar 31 → Apr 30 (anchored to the 31st, clamped per month).
+    const from = new Date("2026-01-01T00:00:00Z");
+    const to = new Date("2026-05-01T00:00:00Z");
+    const occ = expandEvent(ev({ start: "2026-01-31T12:00:00.000Z", freq: "monthly" }), from, to);
+    const days = occ.map((o) => o.start.getUTCDate());
+    expect(days).toEqual([31, 28, 31, 30]);
+  });
+
+  it("a very old daily event still expands into the current window", () => {
+    // Base ~15 years back must not be swallowed by the iteration guard.
+    const from = new Date("2026-07-20T00:00:00Z");
+    const to = new Date("2026-07-23T00:00:00Z");
+    const occ = expandEvent(ev({ start: "2011-01-01T09:00:00.000Z", freq: "daily" }), from, to);
+    expect(occ.length).toBe(3); // 7/20, 7/21, 7/22
+  });
+
+  it("timezone-aware expansion holds the local wall-clock across a DST change", () => {
+    // Noon in New York must stay noon before AND after the spring-forward (Mar 8, 2026).
+    const from = new Date("2026-03-06T00:00:00Z");
+    const to = new Date("2026-03-11T00:00:00Z");
+    const occ = expandEvent(
+      ev({ start: "2026-03-06T17:00:00.000Z", freq: "daily" }), // noon EST (UTC-5)
+      from,
+      to,
+      "America/New_York"
+    );
+    const hoursInNY = occ.map((o) =>
+      Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(o.start)) % 24
+    );
+    expect(hoursInNY.every((h) => h === 12)).toBe(true);
+  });
+
   it("expandAll sorts by start", () => {
     const a = ev({ id: "a", start: "2026-07-25T10:00:00Z" });
     const b = ev({ id: "b", start: "2026-07-21T10:00:00Z" });

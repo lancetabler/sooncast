@@ -58,18 +58,21 @@ Add `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, and `NEXT_PUBLIC_STRIPE_ENABLED=true
 Until then the upgrade button says billing isn't configured (safe).
 
 ## 5. Reminders — the 1-minute pinger (free)
-Web Push reminders are sent when something hits `GET /api/cron/reminders`. Pick one:
+Hit `GET /api/cron/tick` every minute. That one endpoint does everything: due reminders + live
+score alerts on every call, the morning digest (only in the user's 7–10am window), and a source
+re-sync every ~6h. (Don't point the pinger at `/api/cron/reminders` — that runs reminders *only*,
+so the digest and schedule re-imports would never fire.) Pick one:
 
 **cron-job.org (easiest):**
 1. Sign up (free), create a cron job.
-2. URL: `https://YOUR-APP.vercel.app/api/cron/reminders?secret=YOUR_CRON_SECRET`
+2. URL: `https://YOUR-APP.vercel.app/api/cron/tick?secret=YOUR_CRON_SECRET`
 3. Schedule: **every 1 minute**. Done.
 
 **Cloudflare Worker (also free, per-minute):** a tiny worker on a `* * * * *` trigger that `fetch()`es the same URL.
 
 > If your pinger runs every 5 minutes instead of 1, set `CRON_LOOKBACK_MIN=6` so no reminder slips through the window.
 
-When you upgrade to Vercel Pro, the built-in cron in `vercel.json` takes over automatically (Vercel signs those requests with `CRON_SECRET`) and you can delete the external pinger.
+When you upgrade to Vercel Pro, change the `vercel.json` schedule to `* * * * *` — the built-in cron then hits `/api/cron/tick` itself (Vercel signs those requests with `CRON_SECRET`) and you can delete the external pinger.
 
 ---
 

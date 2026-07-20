@@ -154,7 +154,7 @@ export function EventCard({
       </div>
 
       {occ.event.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <img src={occ.event.imageUrl} alt="" className="size-9 shrink-0 self-center rounded-lg object-contain" />
       )}
 
