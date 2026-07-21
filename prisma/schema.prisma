@@ -157,3 +157,11 @@ model ReminderLog {
 
   @@index([userId])
 }
+
+// Beta-access email signups captured from the marketing landing page (no account required).
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  source    String?  // where they signed up from, e.g. "landing"
+  createdAt DateTime @default(now())
+}

@@ -18,7 +18,7 @@ export default function ResetForm({ token }: { token: string }) {
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card/70 p-6 text-center">
         <h1 className="text-lg font-semibold">Invalid link</h1>
         <p className="mt-2 text-sm text-muted-foreground">This reset link is missing its token.</p>
-        <Link href="/" className="mt-4 inline-block text-primary">Back to sign in</Link>
+        <Link href="/app" className="mt-4 inline-block text-primary">Back to sign in</Link>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export default function ResetForm({ token }: { token: string }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Couldn't reset");
       toast.success("Password updated");
-      router.push("/");
+      router.push("/app");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't reset");
