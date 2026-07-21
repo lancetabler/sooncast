@@ -7,6 +7,7 @@ import { parseIntArray } from "@/lib/serialize";
 import { sendPush, pushReady } from "@/lib/push";
 import { getLiveStatuses, scoreString } from "@/lib/live";
 import { runFollowImport } from "@/lib/import";
+import { sendExpo } from "@/lib/expo-push";
 import type { TrackEvent } from "@/lib/domain/types";
 
 // How far back to catch fires that just came due. Set CRON_LOOKBACK_MIN to your
@@ -81,9 +82,10 @@ export async function runReminders(): Promise<ReminderResult> {
   const to = new Date(now + MAX_REMINDER_MIN * 60_000);
 
   const users = await prisma.user.findMany({
-    where: { subscriptions: { some: {} } },
+    where: { OR: [{ subscriptions: { some: {} } }, { expoPushTokens: { some: {} } }] },
     include: {
       subscriptions: true,
+      expoPushTokens: true,
       follows: true,
       events: { where: { start: { lte: to }, OR: [{ freq: { not: "none" } }, { start: { gte: from } }] } },
     },
@@ -101,6 +103,10 @@ export async function runReminders(): Promise<ReminderResult> {
       if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
       else if (status >= 200 && status < 300) { sent++; delivered++; }
     }
+    // Native (Expo → APNs) delivery of the same notification, carrying the deep-link url.
+    const expoDelivered = await sendExpo(user.expoPushTokens, { title, body, data: url ? { url } : undefined });
+    sent += expoDelivered;
+    delivered += expoDelivered;
     return delivered;
   }
 
@@ -212,6 +218,7 @@ export async function runDigest({ force = false }: { force?: boolean } = {}): Pr
   const users = await prisma.user.findMany({
     include: {
       subscriptions: true,
+      expoPushTokens: true,
       follows: true,
       events: { where: { start: { lte: to }, OR: [{ freq: { not: "none" } }, { start: { gte: from } }] } },
     },
@@ -219,7 +226,7 @@ export async function runDigest({ force = false }: { force?: boolean } = {}): Pr
   let sent = 0;
 
   for (const user of users) {
-    if (!user.subscriptions.length) continue;
+    if (!user.subscriptions.length && !user.expoPushTokens.length) continue;
 
     if (!force) {
       const mod = minutesOfDayInTz(new Date(now), user.timezone);
@@ -248,6 +255,7 @@ export async function runDigest({ force = false }: { force?: boolean } = {}): Pr
       if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
       else if (status >= 200 && status < 300) sent++;
     }
+    sent += await sendExpo(user.expoPushTokens, { title: "Your day 📡", body });
   }
 
   return { sent };
@@ -262,7 +270,7 @@ export interface SyncResult {
 
 /** Re-import every followed source and push when new fixtures appear; prune stale past imports. */
 export async function runSync(): Promise<SyncResult> {
-  const users = await prisma.user.findMany({ include: { follows: true, subscriptions: true } });
+  const users = await prisma.user.findMany({ include: { follows: true, subscriptions: true, expoPushTokens: true } });
   let follows = 0;
   let added = 0;
   let failed = 0;
@@ -280,12 +288,15 @@ export async function runSync(): Promise<SyncResult> {
     }
     added += userAdded;
 
-    if (userAdded > 0 && pushReady() && user.subscriptions.length) {
+    if (userAdded > 0 && (user.subscriptions.length || user.expoPushTokens.length)) {
       const body = `${userAdded} new event${userAdded > 1 ? "s" : ""} added from the things you follow.`;
-      for (const sub of user.subscriptions) {
-        const status = await sendPush(sub, { title: "New on Sooncast 📡", body, tag: `newevents-${user.id}-${Date.now()}` });
-        if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+      if (pushReady()) {
+        for (const sub of user.subscriptions) {
+          const status = await sendPush(sub, { title: "New on Sooncast 📡", body, tag: `newevents-${user.id}-${Date.now()}` });
+          if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+        }
       }
+      await sendExpo(user.expoPushTokens, { title: "New on Sooncast 📡", body });
     }
   }
 

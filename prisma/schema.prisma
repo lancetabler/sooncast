@@ -26,6 +26,7 @@ model User {
   events        Event[]
   follows       Follow[]
   subscriptions PushSubscription[]
+  expoPushTokens ExpoPushToken[]
   reminderLogs  ReminderLog[]
   resetTokens   PasswordResetToken[]
 }
@@ -123,6 +124,18 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Native-app push tokens (Expo push service → APNs/FCM). Distinct from web-push PushSubscription.
+model ExpoPushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique // ExponentPushToken[...]
+  platform  String? // ios | android
   createdAt DateTime @default(now())
 
   @@index([userId])
