@@ -234,12 +234,12 @@ export function SettingsView({
     if (!events.length) return toast("Nothing to export yet");
     const emojiFor = new Map(categories.map((c) => [c.id, c.emoji]));
     const track: TrackEvent[] = events.map((e: ClientEvent) => ({ ...e, freq: e.freq as TrackEvent["freq"] }));
-    const ics = buildICS(track, { calName: "Radarr", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
+    const ics = buildICS(track, { calName: "Sooncast", emojiPrefix: (ev) => emojiFor.get(ev.categoryId ?? "") ?? "" });
     const blob = new Blob([ics], { type: "text/calendar" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "radarr-all.ics";
+    a.download = "sooncast-all.ics";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast.success("Opening your calendar…");
@@ -252,7 +252,7 @@ export function SettingsView({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `radarr-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `sooncast-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       toast.success("Backup downloaded");
@@ -321,7 +321,7 @@ export function SettingsView({
         </Row>
         {!isStandalone() && (
           <p className="px-1 text-xs text-muted-foreground">
-            On iPhone: Share → <b>Add to Home Screen</b>, then open Radarr from that icon before enabling push.
+            On iPhone: Share → <b>Add to Home Screen</b>, then open Sooncast from that icon before enabling push.
           </p>
         )}
       </Section>
@@ -332,7 +332,7 @@ export function SettingsView({
             <Activity className="size-4 text-primary" /> Background jobs
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            Radarr is serverless, so a scheduler has to wake it to send notifications.
+            Sooncast is serverless, so a scheduler has to wake it to send notifications.
             Easiest setup: point <b>one</b> free every-minute pinger
             (<a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="text-primary">cron-job.org</a>)
             at the <b>“Everything (one pinger)”</b> URL — it fires reminders, the daily digest and schedule sync on its own.
@@ -383,7 +383,7 @@ export function SettingsView({
         <div className="rounded-xl border border-border/70 bg-card p-3.5">
           <p className="text-sm text-muted-foreground">
             Subscribe once in Apple/Google Calendar and it auto-updates as your events change. The calendar fires
-            the alarms itself — the dependable way to be alerted when Radarr is closed.
+            the alarms itself — the dependable way to be alerted when Sooncast is closed.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" asChild>
@@ -579,7 +579,7 @@ export function SettingsView({
         </div>
       </Section>
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">Radarr · your data is private to your account.</p>
+      <p className="pt-2 text-center text-xs text-muted-foreground">Sooncast · your data is private to your account.</p>
 
       <ConfirmDialog
         open={!!confirmFollow}

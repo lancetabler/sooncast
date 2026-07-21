@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 
 /**
- * The Radarr radar mark, drawn with plain divs so Satori (next/og) can rasterize it
+ * The Sooncast radar mark, drawn with plain divs so Satori (next/og) can rasterize it
  * to PNG for favicons, apple-touch-icons and maskable manifest icons.
  * Rings occupy the centre ~78% so it survives Android/iOS icon masking.
  */

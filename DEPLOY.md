@@ -1,4 +1,4 @@
-# Deploying Radarr — the free stack
+# Deploying Sooncast — the free stack
 
 **Vercel** (app) + **Neon** (Postgres) + a **1-minute pinger** for reminders. All free.
 
@@ -9,7 +9,7 @@
 ---
 
 ## 1. Database — Neon (free)
-1. Create a project at **neon.tech**. Name the database `radar`.
+1. Create a project at **neon.tech**. Name the database `sooncast`.
 2. In the dashboard, copy **two** connection strings:
    - **Pooled** — the host contains `-pooler`. This is `DATABASE_URL`.
    - **Direct** — the plain host. This is `DIRECT_URL`.
@@ -49,7 +49,7 @@ npx web-push generate-vapid-keys --json
    | `VAPID_PRIVATE_KEY` | from step 2 |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | same as `VAPID_PUBLIC_KEY` |
    | `VAPID_CONTACT` | `mailto:you@yourdomain` |
-   | `NEXT_PUBLIC_APP_URL` | your Vercel URL, e.g. `https://radar.vercel.app` |
+   | `NEXT_PUBLIC_APP_URL` | your Vercel URL, e.g. `https://sooncast.vercel.app` |
 
 4. Deploy. Open the URL and **sign up — the first account becomes the admin/owner with everything unlocked.**
 

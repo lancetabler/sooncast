@@ -283,7 +283,7 @@ export async function runSync(): Promise<SyncResult> {
     if (userAdded > 0 && pushReady() && user.subscriptions.length) {
       const body = `${userAdded} new event${userAdded > 1 ? "s" : ""} added from the things you follow.`;
       for (const sub of user.subscriptions) {
-        const status = await sendPush(sub, { title: "New on Radarr 📡", body, tag: `newevents-${user.id}-${Date.now()}` });
+        const status = await sendPush(sub, { title: "New on Sooncast 📡", body, tag: `newevents-${user.id}-${Date.now()}` });
         if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
       }
     }

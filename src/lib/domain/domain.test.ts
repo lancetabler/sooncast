@@ -115,7 +115,7 @@ describe("recurrence", () => {
 
 describe("ics", () => {
   it("builds a VCALENDAR with VEVENT and VALARM", () => {
-    const ics = buildICS([ev({ reminders: [60] })], { calName: "Radarr" });
+    const ics = buildICS([ev({ reminders: [60] })], { calName: "Sooncast" });
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("BEGIN:VEVENT");
     expect(ics).toContain("SUMMARY:Test");

@@ -14,7 +14,7 @@ import type { ClientCategory, ClientEvent } from "@/lib/client/types";
 
 function downloadICS(event: ClientEvent, emoji: string) {
   const track: TrackEvent = { ...event, freq: event.freq as TrackEvent["freq"] };
-  const ics = buildICS([track], { calName: "Radarr", emojiPrefix: () => emoji });
+  const ics = buildICS([track], { calName: "Sooncast", emojiPrefix: () => emoji });
   const blob = new Blob([ics], { type: "text/calendar" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -92,7 +92,7 @@ async function shareCountdown(event: ClientEvent, category: ClientCategory | und
 
   ctx.fillStyle = "#6f7a90";
   ctx.font = "700 30px sans-serif";
-  ctx.fillText("📡 Radarr", 90, 1000);
+  ctx.fillText("📡 Sooncast", 90, 1000);
 
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
   if (!blob) return;

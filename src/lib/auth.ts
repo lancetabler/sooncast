@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
-const COOKIE = "radarr_session";
+const COOKIE = "sooncast_session";
 // Fail closed: never sign real sessions with a public default in production.
 if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
   throw new Error("AUTH_SECRET must be set in production — refusing to run with an insecure signing key.");

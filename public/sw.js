@@ -1,7 +1,7 @@
-/* Radarr service worker — offline shell + Web Push.
+/* Sooncast service worker — offline shell + Web Push.
    Handles both classic push payloads and Declarative Web Push (iOS 18.4+),
    where the browser may render the notification without us. */
-const CACHE = "radarr-v2";
+const CACHE = "sooncast-v2";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -69,12 +69,12 @@ self.addEventListener("fetch", (e) => {
 
 self.addEventListener("push", (e) => {
   let data = {};
-  try { data = e.data ? e.data.json() : {}; } catch { data = { title: "Radar", body: e.data ? e.data.text() : "" }; }
+  try { data = e.data ? e.data.json() : {}; } catch { data = { title: "Sooncast", body: e.data ? e.data.text() : "" }; }
   const n = data.notification || data;
-  const title = n.title || "Radarr";
+  const title = n.title || "Sooncast";
   const options = {
     body: n.body || "",
-    tag: n.tag || "radar",
+    tag: n.tag || "sooncast",
     // Re-alert when a same-tag notification is replaced (e.g. a throttled score bump on the
     // stable `score-<id>` tag) instead of updating the tray silently.
     renotify: true,

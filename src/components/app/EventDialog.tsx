@@ -270,7 +270,7 @@ function EventForm({
             })}
           </div>
           <p className="text-xs text-muted-foreground">
-            On iPhone, add the event to your calendar for alerts when Radarr is closed — or enable push in Settings.
+            On iPhone, add the event to your calendar for alerts when Sooncast is closed — or enable push in Settings.
           </p>
         </div>
 
@@ -302,7 +302,7 @@ function EventForm({
           <span />
         )}
         <Button onClick={save} disabled={busy}>
-          {busy ? "Saving…" : isEdit ? "Save" : "Add to Radarr"}
+          {busy ? "Saving…" : isEdit ? "Save" : "Add to Sooncast"}
         </Button>
       </DialogFooter>
 

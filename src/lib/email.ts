@@ -4,7 +4,7 @@ import "server-only";
 // unset, it no-ops (and logs in dev) so the app runs without an email provider.
 export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "Radarr <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM || "Sooncast <onboarding@resend.dev>";
   if (!key) {
     if (process.env.NODE_ENV !== "production") console.log(`[email:noop] to=${opts.to} subject="${opts.subject}"`);
     return false;
@@ -23,7 +23,7 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
 export function resetEmailHtml(link: string): string {
   return `
   <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-    <h2 style="margin:0 0 8px">Reset your Radarr password</h2>
+    <h2 style="margin:0 0 8px">Reset your Sooncast password</h2>
     <p style="color:#555">Click the button below to choose a new password. This link expires in 1 hour.</p>
     <p style="margin:24px 0">
       <a href="${link}" style="background:#5b8cff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;display:inline-block">Reset password</a>

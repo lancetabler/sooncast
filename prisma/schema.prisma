@@ -1,4 +1,4 @@
-// Radar data model. SQLite for local dev; swap `provider`/DATABASE_URL for Postgres in prod.
+// Sooncast data model. SQLite for local dev; swap `provider`/DATABASE_URL for Postgres in prod.
 generator client {
   provider = "prisma-client-js"
 }

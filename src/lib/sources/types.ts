@@ -38,7 +38,7 @@ export async function fetchJSON<T = unknown>(url: string, ms = 12000, revalidate
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "RadarrTracker/1.0", Accept: "application/json" },
+      headers: { "User-Agent": "SooncastTracker/1.0", Accept: "application/json" },
       ...(revalidateSec === 0 ? { cache: "no-store" as const } : { next: { revalidate: revalidateSec } }),
     });
     if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
@@ -54,7 +54,7 @@ export async function fetchText(url: string, ms = 12000): Promise<string> {
   try {
     const res = await fetch(url.replace(/^webcal:/i, "https:"), {
       signal: ctrl.signal,
-      headers: { "User-Agent": "RadarrTracker/1.0" },
+      headers: { "User-Agent": "SooncastTracker/1.0" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();

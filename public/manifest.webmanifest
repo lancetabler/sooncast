@@ -1,6 +1,6 @@
 {
-  "name": "Radarr — Universal Tracker",
-  "short_name": "Radarr",
+  "name": "Sooncast — Universal Tracker",
+  "short_name": "Sooncast",
   "description": "Track anything with a date and get reminded before it happens.",
   "start_url": "/",
   "scope": "/",

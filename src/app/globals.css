@@ -201,7 +201,7 @@
 
 @layer components {
   /* Signature ambient glow used behind the header and hero. */
-  .radarr-glow {
+  .sooncast-glow {
     background:
       radial-gradient(900px 460px at 82% -8%, color-mix(in oklch, var(--primary) 20%, transparent), transparent 60%),
       radial-gradient(700px 480px at -12% 6%, color-mix(in oklch, var(--chart-2) 12%, transparent), transparent 55%);

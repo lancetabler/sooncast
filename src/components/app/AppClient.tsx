@@ -48,7 +48,7 @@ const SECTION_CAP = 25; // cap cards rendered per section before "show more"
 
 // How the Upcoming list is organized. Persisted so the app reopens the way you left it.
 type Lens = "today" | "date" | "category";
-const LENS_KEY = "radarr_lens";
+const LENS_KEY = "sooncast_lens";
 
 // Assign an occurrence to a section: fine-grained near term, then month-by-month.
 function sectionFor(o: Occurrence, now: number): { key: string; label: string; order: number; nearTerm: boolean } {
@@ -127,7 +127,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     // server-rendered defaults match hydration — reading localStorage during render would
     // mismatch. setState here is intentional.
     try {
-      const raw = localStorage.getItem("radarr_views");
+      const raw = localStorage.getItem("sooncast_views");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setSavedViews(JSON.parse(raw));
       const l = localStorage.getItem(LENS_KEY);
@@ -147,7 +147,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
   }
   function persistViews(v: typeof savedViews) {
     setSavedViews(v);
-    localStorage.setItem("radarr_views", JSON.stringify(v));
+    localStorage.setItem("sooncast_views", JSON.stringify(v));
   }
   function saveCurrentView(name: string) {
     persistViews([...savedViews, { id: Math.random().toString(36).slice(2), name: name.trim(), categoryId: filter, search }]);
@@ -239,7 +239,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
     registerServiceWorker();
     // If notifications are already granted, silently re-arm the subscription (iOS rotates them).
     void ensurePushSubscription();
-    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("radarr_onboarded");
+    const onboarded = typeof localStorage !== "undefined" && localStorage.getItem("sooncast_onboarded");
     // Post-mount first-run decision (depends on localStorage) — setState here is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!onboarded && state.events.length === 0 && state.follows.length === 0) setShowOnboard(true);
@@ -412,7 +412,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
       <DesktopSidebar view={view} onSelect={setView} onNew={newEvent} onCommand={() => setPaletteOpen(true)} />
       <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-2xl flex-col overflow-x-clip pb-24 lg:mx-0 lg:max-w-none lg:flex-1 lg:pb-8">
       {/* Header */}
-      <header className="radarr-glow sticky top-0 z-30 border-b border-border/60 bg-background/70 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
+      <header className="sooncast-glow sticky top-0 z-30 border-b border-border/60 bg-background/70 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 lg:max-w-5xl">
           <div className="flex items-center gap-2.5">
             <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-sm shadow-primary/30 lg:hidden">
@@ -423,7 +423,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
                 <path d="M12 12 L20 6" />
               </svg>
             </span>
-            <span className="text-lg font-bold tracking-tight lg:hidden">Radarr</span>
+            <span className="text-lg font-bold tracking-tight lg:hidden">Sooncast</span>
             <h1 className="hidden text-lg font-bold tracking-tight lg:block">{TITLES[view]}</h1>
           </div>
           {(view === "upcoming" || view === "calendar") && (
@@ -646,7 +646,7 @@ export default function AppClient({ initial }: { initial: StateBundle }) {
         open={showOnboard}
         onOpenChange={setShowOnboard}
         onDone={() => {
-          localStorage.setItem("radarr_onboarded", "1");
+          localStorage.setItem("sooncast_onboarded", "1");
           refresh();
         }}
       />
@@ -875,7 +875,7 @@ function DesktopSidebar({ view, onSelect, onNew, onCommand }: { view: View; onSe
             <path d="M12 12 L20 6" />
           </svg>
         </span>
-        <span className="text-lg font-bold tracking-tight">Radarr</span>
+        <span className="text-lg font-bold tracking-tight">Sooncast</span>
       </div>
       <button
         onClick={onNew}
