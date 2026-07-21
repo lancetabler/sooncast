@@ -1,7 +1,7 @@
 import "server-only";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 const COOKIE = "sooncast_session";
@@ -19,7 +19,7 @@ export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);
 }
 
-export async function createSession(userId: string) {
+export async function createSession(userId: string): Promise<string> {
   const token = await new SignJWT({ sub: userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -33,6 +33,9 @@ export async function createSession(userId: string) {
     path: "/",
     maxAge: MAX_AGE,
   });
+  // Also returned so native clients (which can't use the httpOnly cookie) can store the JWT
+  // and send it as a Bearer token.
+  return token;
 }
 
 export async function destroySession() {
@@ -42,7 +45,12 @@ export async function destroySession() {
 
 export async function getUserId(): Promise<string | null> {
   const jar = await cookies();
-  const token = jar.get(COOKIE)?.value;
+  // Web sends the httpOnly session cookie; native apps send the same JWT as `Authorization: Bearer`.
+  let token = jar.get(COOKIE)?.value;
+  if (!token) {
+    const auth = (await headers()).get("authorization");
+    if (auth && auth.toLowerCase().startsWith("bearer ")) token = auth.slice(7).trim();
+  }
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret);

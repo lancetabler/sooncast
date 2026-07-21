@@ -36,6 +36,6 @@ export async function POST(req: Request) {
     },
   });
 
-  await createSession(user.id);
-  return ok({ id: user.id, email: user.email }, 201);
+  const token = await createSession(user.id);
+  return ok({ id: user.id, email: user.email, token }, 201);
 }

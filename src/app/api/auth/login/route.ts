@@ -19,6 +19,6 @@ export async function POST(req: Request) {
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return bad("Wrong email or password", 401);
   }
-  await createSession(user.id);
-  return ok({ id: user.id, email: user.email });
+  const token = await createSession(user.id);
+  return ok({ id: user.id, email: user.email, token });
 }
