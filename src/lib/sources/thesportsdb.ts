@@ -2,12 +2,55 @@
 // BTCC, DTM, WSBK, Formula E, NHRA, Supercross, darts, snooker, …
 // ref = numeric league id. Crowd-sourced data: season strings can lag, so imports
 // merge the premium next-events feed with the current AND next season schedules.
-import { fetchJSON, type NormalizedEvent, type SourceProvider } from "./types";
+import { fetchJSON, type CatalogItem, type NormalizedEvent, type SourceProvider } from "./types";
 
 const key = () => process.env.THESPORTSDB_API_KEY || "";
 const base = () => `https://www.thesportsdb.com/api/v1/json/${key()}`;
 
 export const tsdbConfigured = () => !!key();
+
+// TheSportsDB `strSport` → our seeded category slug (see domain/categories.ts). Anything not
+// listed falls back to "personal" so an obscure league still lands somewhere sensible.
+const SPORT_TO_SLUG: Record<string, string> = {
+  Soccer: "soccer",
+  Basketball: "basketball",
+  "American Football": "football",
+  "Ice Hockey": "nhl",
+  Baseball: "baseball",
+  Motorsport: "racing",
+  Fighting: "combat",
+  Tennis: "tennis",
+  Golf: "golf",
+  Cricket: "cricket",
+  Rugby: "rugby",
+  "Australian Football": "afl",
+  Darts: "darts",
+  Snooker: "snooker",
+  Athletics: "athletics",
+  Volleyball: "volleyball",
+  Lacrosse: "lacrosse",
+  ESports: "games",
+};
+
+// The full TheSportsDB league list (~thousands) — fetched once, cached, then searched locally.
+interface TsdbLeague { id: string; name: string; sport: string; alt: string }
+let leaguesCache: { at: number; list: TsdbLeague[] } | null = null;
+
+async function allLeagues(): Promise<TsdbLeague[]> {
+  if (leaguesCache && Date.now() - leaguesCache.at < 24 * 3600_000) return leaguesCache.list;
+
+  const data = await fetchJSON<{ leagues?: any[] }>(`${base()}/all_leagues.php`).catch(() => null);
+  const list = (data?.leagues || [])
+    .filter((l) => l?.idLeague && l?.strLeague)
+    .map((l) => ({
+      id: String(l.idLeague),
+      name: String(l.strLeague),
+      sport: String(l.strSport || ""),
+      alt: String(l.strLeagueAlternate || ""),
+    }));
+  if (list.length) leaguesCache = { at: Date.now(), list };
+  return list;
+}
 
 export interface TsdbLeagueInfo {
   description?: string;
@@ -117,5 +160,34 @@ export const thesportsdb: SourceProvider = {
       .map(normalize)
       .filter((n): n is NormalizedEvent => !!n)
       .filter((n) => new Date(n.start).getTime() >= cutoff);
+  },
+
+  // Search every TheSportsDB league by name (exact → prefix → substring → alternate name).
+  async search(query: string): Promise<CatalogItem[]> {
+    if (!key()) return [];
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+
+    const scored: { l: TsdbLeague; score: number }[] = [];
+    for (const l of await allLeagues()) {
+      const name = l.name.toLowerCase();
+      let score = -1;
+      if (name === q) score = 0;
+      else if (name.startsWith(q)) score = 1;
+      else if (name.includes(q)) score = 2;
+      else if (l.alt.toLowerCase().includes(q)) score = 3;
+      if (score >= 0) scored.push({ l, score });
+    }
+    scored.sort((a, b) => a.score - b.score || a.l.name.localeCompare(b.l.name));
+
+    return scored.slice(0, 15).map(
+      ({ l }): CatalogItem => ({
+        provider: "thesportsdb",
+        ref: l.id,
+        label: l.name,
+        sublabel: `${l.sport} · community data`,
+        categorySlug: SPORT_TO_SLUG[l.sport] ?? "personal",
+      })
+    );
   },
 };

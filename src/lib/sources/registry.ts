@@ -124,7 +124,7 @@ export async function unifiedSearch(query: string): Promise<CatalogItem[]> {
     return hay.includes(ql);
   });
 
-  const searchers = [espn, tmdb].filter((p) => p.search);
+  const searchers = [espn, tmdb, thesportsdb].filter((p) => p.search);
   const results = await Promise.allSettled(searchers.map((p) => p.search!(q)));
   const remote = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 
