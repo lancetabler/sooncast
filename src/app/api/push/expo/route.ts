@@ -15,6 +15,8 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return bad("Invalid push token");
   const { token, platform } = parsed.data;
+  // Only ever accept a real Expo token — this row drives outbound pushes.
+  if (!/^Expo(nent)?PushToken\[[^\]]+\]$/.test(token)) return bad("Invalid push token");
 
   // Upsert by token so re-registering (and a token that migrates between users) is idempotent.
   await prisma.expoPushToken.upsert({
@@ -22,5 +24,17 @@ export async function POST(req: Request) {
     create: { userId: user.id, token, platform: platform ?? null },
     update: { userId: user.id, platform: platform ?? null },
   });
+  return ok({ ok: true });
+}
+
+// Called on logout so a signed-out device stops receiving that account's notifications.
+export async function DELETE(req: Request) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+
+  const parsed = schema.pick({ token: true }).safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return bad("Invalid push token");
+
+  await prisma.expoPushToken.deleteMany({ where: { token: parsed.data.token, userId: user.id } });
   return ok({ ok: true });
 }

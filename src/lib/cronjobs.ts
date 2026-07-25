@@ -96,15 +96,29 @@ export async function runReminders(): Promise<ReminderResult> {
 
   // Returns how many subscriptions the push actually reached (2xx), so callers can tell a real
   // delivery from a silent failure and decide whether to keep or roll back their claim.
-  async function pushAll(user: (typeof users)[number], title: string, body: string, tag: string, url?: string): Promise<number> {
+  async function pushAll(
+    user: (typeof users)[number],
+    title: string,
+    body: string,
+    tag: string,
+    url?: string,
+    eventId?: string
+  ): Promise<number> {
     let delivered = 0;
     for (const s of user.subscriptions) {
       const status = await sendPush(s, { title, body, tag, url });
       if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
       else if (status >= 200 && status < 300) { sent++; delivered++; }
     }
-    // Native (Expo → APNs) delivery of the same notification, carrying the deep-link url.
-    const expoDelivered = await sendExpo(user.expoPushTokens, { title, body, data: url ? { url } : undefined });
+    // Native (Expo → APNs). `eventId` lets the app open the event when the push is tapped.
+    const data: Record<string, unknown> = {};
+    if (url) data.url = url;
+    if (eventId) data.eventId = eventId;
+    const expoDelivered = await sendExpo(user.expoPushTokens, {
+      title,
+      body,
+      data: Object.keys(data).length ? data : undefined,
+    });
     sent += expoDelivered;
     delivered += expoDelivered;
     return delivered;
@@ -139,7 +153,7 @@ export async function runReminders(): Promise<ReminderResult> {
         fire.minutes === 0
           ? "Starting now" + suffix
           : `${reminderLabel(fire.minutes).replace(" before", "")} — starts soon` + suffix;
-      const delivered = await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined);
+      const delivered = await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined, fire.eventId);
       // The push never landed (transient gateway failure) — release the claim so we retry next run.
       if (!delivered) await releaseClaim(fire.key);
     }
@@ -168,7 +182,7 @@ export async function runReminders(): Promise<ReminderResult> {
             const bucket = Math.floor(now / SCORE_THROTTLE_MS);
             const scoreKey = `score:${e.id}:${bucket}`;
             if (await claimOnce(user.id, scoreKey)) {
-              const delivered = await pushAll(user, `🚨 ${e.title}`, `${newScore}${st.detail ? " · " + st.detail : ""}`, `score-${e.id}`, e.url ?? undefined);
+              const delivered = await pushAll(user, `🚨 ${e.title}`, `${newScore}${st.detail ? " · " + st.detail : ""}`, `score-${e.id}`, e.url ?? undefined, e.id);
               // Free the throttle bucket so the next actual score change can still alert (liveScore
               // advances below regardless, so this exact score won't re-fire — score alerts are lossy).
               if (!delivered) await releaseClaim(scoreKey);
@@ -181,7 +195,7 @@ export async function runReminders(): Promise<ReminderResult> {
           // Claim first so concurrent runs can't both send the Final push.
           const finalKey = `final:${e.id}`;
           if (await claimOnce(user.id, finalKey)) {
-            const delivered = await pushAll(user, `Final · ${e.title}`, newScore ?? "Final", `final-${e.id}`, e.url ?? undefined);
+            const delivered = await pushAll(user, `Final · ${e.title}`, newScore ?? "Final", `final-${e.id}`, e.url ?? undefined, e.id);
             if (delivered) {
               // Only mark "post" once the Final actually landed — otherwise the event drops out of
               // the live-candidate filter and the Final could never be retried.
