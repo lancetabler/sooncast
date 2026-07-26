@@ -75,8 +75,9 @@ export interface ReminderResult {
 
 /** Per-minute work: due reminders + live score-change / final alerts for followed team sports. */
 export async function runReminders(): Promise<ReminderResult> {
-  if (!pushReady()) return { checkedUsers: 0, sent: 0 };
-
+  // NOTE: deliberately NOT gated on pushReady(). That checks the VAPID keys for *web* push;
+  // native (Expo → APNs) delivery doesn't need them. Gating the whole job here silently
+  // disabled every reminder and score alert for the mobile app whenever VAPID was unset.
   const now = Date.now();
   const from = new Date(now - 6 * 3600_000);
   const to = new Date(now + MAX_REMINDER_MIN * 60_000);
@@ -105,10 +106,13 @@ export async function runReminders(): Promise<ReminderResult> {
     eventId?: string
   ): Promise<number> {
     let delivered = 0;
-    for (const s of user.subscriptions) {
-      const status = await sendPush(s, { title, body, tag, url });
-      if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
-      else if (status >= 200 && status < 300) { sent++; delivered++; }
+    // Web push only runs when VAPID is configured; native delivery below is independent.
+    if (pushReady()) {
+      for (const s of user.subscriptions) {
+        const status = await sendPush(s, { title, body, tag, url });
+        if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
+        else if (status >= 200 && status < 300) { sent++; delivered++; }
+      }
     }
     // Native (Expo → APNs). `eventId` lets the app open the event when the push is tapped.
     const data: Record<string, unknown> = {};
@@ -223,8 +227,7 @@ export interface DigestResult {
  *   they haven't had today's digest yet (deduped via ReminderLog).
  */
 export async function runDigest({ force = false }: { force?: boolean } = {}): Promise<DigestResult> {
-  if (!pushReady()) return { sent: 0 };
-
+  // Not gated on pushReady() — see runReminders. Native push works without VAPID keys.
   const now = Date.now();
   const from = new Date(now);
   const to = new Date(now + 18 * 3600_000);
@@ -264,10 +267,12 @@ export async function runDigest({ force = false }: { force?: boolean } = {}): Pr
       return `${when} ${o.event.title}${ch ? ` (📺 ${ch})` : ""}`;
     });
     const body = `${occ.length} today — ${lines.join(" · ")}${occ.length > 4 ? " · …" : ""}`;
-    for (const s of user.subscriptions) {
-      const status = await sendPush(s, { title: "Your day 📡", body, tag: `digest-${dateInTz(new Date(now), user.timezone)}` });
-      if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
-      else if (status >= 200 && status < 300) sent++;
+    if (pushReady()) {
+      for (const s of user.subscriptions) {
+        const status = await sendPush(s, { title: "Your day 📡", body, tag: `digest-${dateInTz(new Date(now), user.timezone)}` });
+        if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
+        else if (status >= 200 && status < 300) sent++;
+      }
     }
     sent += await sendExpo(user.expoPushTokens, { title: "Your day 📡", body });
   }
