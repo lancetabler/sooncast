@@ -20,6 +20,7 @@ model User {
   quietEnd     Int?
   defaultReminders String @default("[0,60,1440]") // JSON int[] minutes-before
   favoriteAthletes String @default("[]") // JSON string[] of "leagueRef::name" (starred drivers/players)
+  spoilerMode      String @default("show") // show | finals (hide final scores until watched) | all (hide live scores too)
   createdAt    DateTime @default(now())
 
   categories    Category[]

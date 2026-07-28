@@ -180,8 +180,12 @@ export async function runReminders(): Promise<ReminderResult> {
         const st = statuses[e.id];
         if (!st) continue;
         const newScore = scoreString(st);
+        // Spoiler shield: the user has told us they haven't watched this yet — don't push the
+        // numbers at them. "all" suppresses live score pushes entirely; any non-"show" mode
+        // strips the score from the Final push below.
+        const shielded = user.spoilerMode !== "show" && !e.watchedAt;
         if (st.state === "in") {
-          if (newScore && e.liveScore && newScore !== e.liveScore) {
+          if (newScore && e.liveScore && newScore !== e.liveScore && !(shielded && user.spoilerMode === "all")) {
             // Throttle so a live game can't fire on every basket; stable tag replaces (not stacks).
             const bucket = Math.floor(now / SCORE_THROTTLE_MS);
             const scoreKey = `score:${e.id}:${bucket}`;
@@ -199,7 +203,8 @@ export async function runReminders(): Promise<ReminderResult> {
           // Claim first so concurrent runs can't both send the Final push.
           const finalKey = `final:${e.id}`;
           if (await claimOnce(user.id, finalKey)) {
-            const delivered = await pushAll(user, `Final · ${e.title}`, newScore ?? "Final", `final-${e.id}`, e.url ?? undefined, e.id);
+            const body = shielded ? "Full time — result hidden. Tap when you're ready." : newScore ?? "Final";
+            const delivered = await pushAll(user, `Final · ${e.title}`, body, `final-${e.id}`, e.url ?? undefined, e.id);
             if (delivered) {
               // Only mark "post" once the Final actually landed — otherwise the event drops out of
               // the live-candidate filter and the Final could never be retried.

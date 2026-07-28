@@ -22,6 +22,7 @@ export interface ClientUser {
   quietEnd: number | null;
   defaultReminders: number[];
   favoriteAthletes: string[];
+  spoilerMode: string; // show | finals | all
   feedUrl: string;
 }
 export interface StateBundle {
@@ -67,6 +68,7 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
       quietEnd: user.quietEnd,
       defaultReminders: parseIntArray(user.defaultReminders),
       favoriteAthletes: parseStringArray(user.favoriteAthletes),
+      spoilerMode: user.spoilerMode,
       feedUrl: `${appUrl}/api/feed/${user.feedToken}`,
     },
     categories: categories.map(serializeCategory),

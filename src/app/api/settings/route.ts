@@ -9,6 +9,7 @@ const schema = z.object({
   quietStart: z.number().int().min(0).max(1439).nullable().optional(),
   quietEnd: z.number().int().min(0).max(1439).nullable().optional(),
   favoriteAthletes: z.array(z.string().max(120)).max(200).optional(),
+  spoilerMode: z.enum(["show", "finals", "all"]).optional(),
 });
 
 export async function PATCH(req: Request) {
