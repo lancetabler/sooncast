@@ -6,6 +6,47 @@ function apiKey() {
 }
 const IMG = "https://image.tmdb.org/t/p/w200";
 
+function fmtRelease(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  const sameYear = d.getUTCFullYear() === new Date().getUTCFullYear();
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+// Browsable list of upcoming theatrical releases, each followable on its own
+// (ref "movie/{id}") — so users pick the films they care about instead of
+// inheriting the whole "upcoming" firehose.
+export async function upcomingMovies(): Promise<CatalogItem[]> {
+  if (!apiKey()) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  const pages = await Promise.allSettled(
+    [1, 2, 3].map((p) =>
+      fetchJSON<any>(`https://api.themoviedb.org/3/movie/upcoming?api_key=${apiKey()}&region=US&page=${p}`)
+    )
+  );
+  const seen = new Set<number>();
+  const out: Array<CatalogItem & { _date: string }> = [];
+  for (const page of pages) {
+    if (page.status !== "fulfilled") continue;
+    for (const m of page.value?.results || []) {
+      // The endpoint's window includes films already in theaters — only future dates count down.
+      if (!m.id || !m.release_date || m.release_date < today || seen.has(m.id)) continue;
+      seen.add(m.id);
+      out.push({
+        provider: "tmdb",
+        ref: `movie/${m.id}`,
+        label: m.title,
+        sublabel: `In theaters ${fmtRelease(m.release_date)}`,
+        categorySlug: "screen",
+        imageUrl: m.poster_path ? IMG + m.poster_path : undefined,
+        description: m.overview || undefined,
+        _date: m.release_date,
+      });
+    }
+  }
+  out.sort((a, b) => a._date.localeCompare(b._date));
+  return out.map(({ _date, ...item }) => item);
+}
+
 export const tmdb: SourceProvider = {
   id: "tmdb",
   async fetchEvents(ref: string): Promise<NormalizedEvent[]> {

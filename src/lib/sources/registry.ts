@@ -106,7 +106,7 @@ export function featuredCatalog(): CatalogItem[] {
     ...LEAGUE_FOLLOWS,
     ...rest,
     ...tsdbRest,
-    { provider: "tmdb", ref: "upcoming", label: "Movies — upcoming releases", sublabel: "New theatrical releases", categorySlug: "screen" },
+    { provider: "tmdb", ref: "upcoming", label: "Movies — upcoming releases", sublabel: "Browse & pick the films you care about", categorySlug: "screen" },
   ];
 }
 
