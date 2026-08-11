@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isResponse, ok, bad } from "@/lib/api";
-import { serializeEvent } from "@/lib/serialize";
+import { parseStringArray, serializeEvent } from "@/lib/serialize";
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -18,6 +18,11 @@ const patchSchema = z.object({
   tags: z.array(z.string().max(40)).max(20).optional(),
   countUp: z.boolean().optional(),
   watchedAt: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid watchedAt date").nullable().optional(),
+  // Per-occurrence watched state for recurring events — bare "YYYY-MM-DD" occurrence dates.
+  watchedDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(2000).optional(),
+  // Mark ONE occurrence watched, merged server-side. A notification action has no copy of the
+  // current list and can't safely read-modify-write it from a Lock Screen tap.
+  watchDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -50,6 +55,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(d.tags !== undefined ? { tags: JSON.stringify(d.tags) } : {}),
       ...(d.countUp !== undefined ? { countUp: d.countUp } : {}),
       ...(d.watchedAt !== undefined ? { watchedAt: d.watchedAt ? new Date(d.watchedAt) : null } : {}),
+      ...(d.watchedDates !== undefined ? { watchedDates: JSON.stringify([...new Set(d.watchedDates)].sort()) } : {}),
+      // Merge, and stamp watchedAt alongside — it's what one-off events read and what the
+      // profile's streak is built from.
+      ...(d.watchDate !== undefined
+        ? {
+            watchedDates: JSON.stringify(
+              [...new Set([...parseStringArray(existing.watchedDates), d.watchDate])].sort()
+            ),
+            watchedAt: new Date(),
+          }
+        : {}),
     },
   });
   return ok(serializeEvent(updated));

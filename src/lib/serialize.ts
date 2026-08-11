@@ -35,6 +35,8 @@ export interface ClientEvent {
   tags: string[];
   countUp: boolean;
   watchedAt: string | null;
+  /** Per-occurrence watched state for recurring events: "YYYY-MM-DD" occurrence dates. */
+  watchedDates: string[];
   followId: string | null;
   sourceProvider: string | null;
   sourceLabel: string | null;
@@ -58,6 +60,7 @@ export function serializeEvent(e: DbEvent): ClientEvent {
     tags: parseStringArray(e.tags),
     countUp: e.countUp,
     watchedAt: e.watchedAt ? e.watchedAt.toISOString() : null,
+    watchedDates: parseStringArray(e.watchedDates),
     followId: e.followId,
     sourceProvider: e.sourceProvider,
     sourceLabel: e.sourceLabel,

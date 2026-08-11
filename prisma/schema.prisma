@@ -84,6 +84,12 @@ model Event {
   imageUrl    String?
   countUp     Boolean  @default(false) // "time since" instead of countdown
   watchedAt   DateTime? // set when the user marks it watched (powers profile stats)
+  // Recurring events are ONE row with many occurrences, so a single watchedAt marked the whole
+  // series at once — watch week 3 of a weekly fixture and weeks 4..52 went with it. Per-occurrence
+  // state lives here as JSON "YYYY-MM-DD"[] keyed on the occurrence's calendar date, which is
+  // unique because every supported frequency is at least a day apart. watchedAt stays the answer
+  // for one-off events (the overwhelming majority) so nothing existing has to migrate.
+  watchedDates String  @default("[]")
   liveState   String? // espn: pre | in | post (last seen)
   liveScore   String? // last seen "AWA a-b HOM" for score-change alerts
 

@@ -116,7 +116,7 @@ export async function runReminders(): Promise<ReminderResult> {
     tag: string,
     url?: string,
     eventId?: string,
-    opts?: { timeSensitive?: boolean; followId?: string | null }
+    opts?: { timeSensitive?: boolean; followId?: string | null; occStart?: Date }
   ): Promise<number> {
     let delivered = 0;
     // Web push only runs when VAPID is configured; native delivery below is independent.
@@ -133,6 +133,17 @@ export async function runReminders(): Promise<ReminderResult> {
     if (url) data.url = url;
     if (eventId) data.eventId = eventId;
     if (opts?.followId) data.followId = opts.followId;
+    // Which occurrence this push is about, so "Mark watched" on a recurring event ticks off the one
+    // that just fired instead of the whole series. en-CA formats as YYYY-MM-DD, and the user's own
+    // timezone is the frame the app keys occurrences on.
+    if (opts?.occStart) {
+      data.occDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: user.timezone || "UTC",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(opts.occStart);
+    }
     const expoDelivered = await sendExpo(user.expoPushTokens, {
       title,
       body,
@@ -187,6 +198,7 @@ export async function runReminders(): Promise<ReminderResult> {
         // "Starting now" and the last call before kick-off are the ones worth piercing Focus.
         timeSensitive: fire.minutes <= 15,
         followId: followIdByEvent.get(fire.eventId) ?? null,
+        occStart: fire.occStart,
       });
       // The push never landed (transient gateway failure) — release the claim so we retry next run.
       if (!delivered) await releaseClaim(fire.key);
