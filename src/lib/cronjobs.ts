@@ -379,6 +379,9 @@ export interface SyncResult {
 
 /** Re-import every followed source and push when new fixtures appear; prune stale past imports. */
 export async function runSync(): Promise<SyncResult> {
+  // Captured before any importing so it's a clean floor for "added by this run" — the app asks
+  // /api/events/recent?since=<this> when the resulting push is tapped.
+  const runStart = new Date();
   const users = await prisma.user.findMany({ include: { follows: true, subscriptions: true, expoPushTokens: true } });
   let follows = 0;
   let added = 0;
@@ -420,7 +423,14 @@ export async function runSync(): Promise<SyncResult> {
           if (status === 404 || status === 410) await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
         }
       }
-      await sendExpo(user.expoPushTokens, { title: "New on Sooncast 📡", body });
+      // Tapping this used to just open the app, leaving "21 new events added" as a claim with
+      // nothing behind it. `screen` routes to the list; `since` pins it to this run's batch, so
+      // opening the push hours (and another sync) later still shows the events it was about.
+      await sendExpo(user.expoPushTokens, {
+        title: "New on Sooncast 📡",
+        body,
+        data: { screen: "added", since: runStart.toISOString() },
+      });
     }
   }
 
