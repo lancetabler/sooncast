@@ -94,6 +94,16 @@ export async function runReminders(): Promise<ReminderResult> {
     },
   });
 
+  // Events per follow over the next 30 days — the volume input to the reminder policy. Queried
+  // separately because `users.events` above only spans the reminder horizon (a week), which
+  // would make every busy league look quiet enough to notify.
+  const monthlyCounts = await prisma.event.groupBy({
+    by: ["followId"],
+    where: { followId: { not: null }, start: { gte: new Date(now), lte: new Date(now + 30 * 86400_000) } },
+    _count: true,
+  });
+  const perMonthByFollow = new Map(monthlyCounts.map((r) => [r.followId as string, r._count]));
+
   let sent = 0;
   let checkedUsers = 0;
 
@@ -149,7 +159,9 @@ export async function runReminders(): Promise<ReminderResult> {
     // Reminder eligibility is evaluated here, at send time, rather than baked into the events at
     // import — so changing the setting takes effect on the next tick instead of the next sync.
     const scope = user.notifyScope as NotifyScope;
-    const notifyingFollowIds = new Set(user.follows.filter((f) => followNotifies(scope, f)).map((f) => f.id));
+    const notifyingFollowIds = new Set(
+      user.follows.filter((f) => followNotifies(scope, f, perMonthByFollow.get(f.id) ?? 0)).map((f) => f.id)
+    );
     const followIdByEvent = new Map(user.events.map((e) => [e.id, e.followId]));
 
     /* ---- reminders ---- */

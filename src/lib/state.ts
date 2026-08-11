@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { serializeEvent, serializeCategory, parseIntArray, parseStringArray, type ClientEvent, type ClientCategory } from "@/lib/serialize";
+import { followNotifies } from "@/lib/domain/notify";
 
 export interface ClientFollow {
   id: string;
@@ -12,6 +13,7 @@ export interface ClientFollow {
   muted: boolean;
   scoreAlerts: boolean;
   notify: "on" | "off" | null; // per-follow reminder override; null = inherit notifyScope
+  notifying: boolean; // whether it actually sends reminders right now, policy applied
   count: number;
 }
 export interface ClientUser {
@@ -51,7 +53,7 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
 
   const cutoff = new Date(Date.now() - STATE_WINDOW_DAYS * 86400_000);
   const horizon = new Date(Date.now() + STATE_AHEAD_DAYS * 86400_000);
-  const [categories, events, follows, followCounts] = await Promise.all([
+  const [categories, events, follows, followCounts, monthlyCounts] = await Promise.all([
     prisma.category.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.event.findMany({
       where: {
@@ -66,10 +68,18 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
     }),
     prisma.follow.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.event.groupBy({ by: ["followId"], where: { userId, followId: { not: null } }, _count: true }),
+    // Events per follow over the next 30 days — the input to the reminder policy.
+    prisma.event.groupBy({
+      by: ["followId"],
+      where: { userId, followId: { not: null }, start: { gte: new Date(), lte: new Date(Date.now() + 30 * 86400_000) } },
+      _count: true,
+    }),
   ]);
 
   // Accurate per-follow totals (all events, not just the windowed payload).
   const countByFollow = new Map(followCounts.map((r) => [r.followId, r._count]));
+  const perMonthByFollow = new Map(monthlyCounts.map((r) => [r.followId, r._count]));
+  const scope = user.notifyScope as "all" | "specific" | "manual";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   return {
     user: {
@@ -98,6 +108,8 @@ export async function loadState(userId: string): Promise<StateBundle | null> {
       muted: f.muted,
       scoreAlerts: f.scoreAlerts,
       notify: (f.notify as "on" | "off" | null) ?? null,
+      // Resolved here rather than re-derived in the app: one rule, one place, no drift.
+      notifying: followNotifies(scope, f, perMonthByFollow.get(f.id) ?? 0),
       count: countByFollow.get(f.id) ?? 0,
     })),
   };
