@@ -23,6 +23,30 @@ export function apnsConfigured(): boolean {
   return !!(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_AUTH_KEY);
 }
 
+/**
+ * Health check for the Live Activity credentials. A .p8 can only be downloaded once, so a
+ * mis-pasted key is easy to end up with and otherwise only shows as Lock Screens that quietly
+ * never update — this says so directly instead.
+ */
+export function apnsHealth(): { configured: boolean; signs: boolean; keyId: string | null; problem: string | null } {
+  if (!apnsConfigured()) {
+    return { configured: false, signs: false, keyId: null, problem: "APNS_KEY_ID / APNS_TEAM_ID / APNS_AUTH_KEY not set" };
+  }
+  const key = (process.env.APNS_AUTH_KEY || "").replace(/\\n/g, "\n");
+  const keyId = process.env.APNS_KEY_ID || null;
+  if (!/BEGIN PRIVATE KEY/.test(key)) {
+    return { configured: true, signs: false, keyId, problem: "APNS_AUTH_KEY doesn't look like a .p8 (no BEGIN PRIVATE KEY line)" };
+  }
+  // Signing is the real test: it fails on a truncated or wrong-format key.
+  const jwt = providerToken();
+  return {
+    configured: true,
+    signs: !!jwt,
+    keyId,
+    problem: jwt ? null : "Key is present but couldn't sign — check the .p8 was pasted whole, including both BEGIN/END lines",
+  };
+}
+
 function bundleId(): string {
   return process.env.APNS_BUNDLE_ID || "com.lancetabler.sooncast";
 }

@@ -1,6 +1,7 @@
 import { requireUser, isResponse, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { pushReady } from "@/lib/push";
+import { apnsHealth } from "@/lib/apns";
 
 export const dynamic = "force-dynamic";
 
@@ -32,5 +33,6 @@ export async function GET() {
     url: appUrl ? `${appUrl}${j.path}${secret ? `?secret=${secret}` : ""}` : null,
   }));
 
-  return ok({ appUrl, hasSecret: !!secret, push: pushReady(), jobs });
+  const liveActivities = await prisma.liveActivityToken.count();
+  return ok({ appUrl, hasSecret: !!secret, push: pushReady(), jobs, apns: apnsHealth(), liveActivities });
 }
