@@ -1,5 +1,6 @@
 import "server-only";
 import { createSign } from "crypto";
+import http2 from "node:http2";
 
 /**
  * Direct APNs delivery for **Live Activity** updates.
@@ -97,6 +98,49 @@ function derToJoseES256(der: Buffer): Buffer {
   return out;
 }
 
+/**
+ * POST to APNs over HTTP/2.
+ *
+ * APNs speaks HTTP/2 exclusively, and Node's global `fetch` (undici) is HTTP/1.1 — it fails
+ * with "Response does not match the HTTP/1.1 protocol" against Apple's frames. So this uses
+ * node:http2 directly. One short-lived session per request: these are rare (a handful per
+ * live game) and serverless instances don't live long enough to amortise a pooled one.
+ */
+export async function apnsPost(
+  token: string,
+  headers: Record<string, string>,
+  body: string
+): Promise<{ status: number; body: string }> {
+  const host = process.env.APNS_HOST || "https://api.push.apple.com";
+  return new Promise((resolve, reject) => {
+    const client = http2.connect(host);
+    let settled = false;
+    const done = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      client.close();
+      fn();
+    };
+
+    client.on("error", (e) => done(() => reject(e)));
+
+    const req = client.request({ ":method": "POST", ":path": `/3/device/${token}`, ...headers });
+    let status = 0;
+    let data = "";
+    req.setEncoding("utf8");
+    req.on("response", (h) => {
+      status = Number(h[":status"]) || 0;
+    });
+    req.on("data", (chunk) => {
+      data += chunk;
+    });
+    req.on("end", () => done(() => resolve({ status, body: data })));
+    req.on("error", (e) => done(() => reject(e)));
+    req.setTimeout(8000, () => done(() => reject(new Error("APNs request timed out"))));
+    req.end(body);
+  });
+}
+
 export interface LiveActivityContent {
   status: string;
   detail: string;
@@ -138,28 +182,25 @@ export async function sendLiveActivityUpdate(
     },
   };
 
-  const host = process.env.APNS_HOST || "https://api.push.apple.com";
   try {
-    const res = await fetch(`${host}/3/device/${token}`, {
-      method: "POST",
-      headers: {
+    const res = await apnsPost(
+      token,
+      {
         authorization: `bearer ${jwt}`,
         "apns-topic": `${bundleId()}.push-type.liveactivity`,
         "apns-push-type": "liveactivity",
         "apns-priority": "10",
         "content-type": "application/json",
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) return "sent";
+      JSON.stringify(payload)
+    );
+    if (res.status >= 200 && res.status < 300) return "sent";
     // 410 Gone, or 400 BadDeviceToken — the Activity is over; stop trying.
-    if (res.status === 410) return "gone";
-    const body = await res.text().catch(() => "");
-    if (/BadDeviceToken|Unregistered|ExpiredToken/.test(body)) return "gone";
-    console.error("[apns] live activity update failed:", res.status, body.slice(0, 160));
+    if (res.status === 410 || /BadDeviceToken|Unregistered|ExpiredToken/.test(res.body)) return "gone";
+    console.error("[apns] live activity update failed:", res.status, res.body.slice(0, 160));
     return "failed";
-  } catch {
+  } catch (e) {
+    console.error("[apns] live activity update error:", e instanceof Error ? e.message : e);
     return "failed";
   }
 }
