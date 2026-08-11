@@ -31,6 +31,22 @@ export interface SourceProvider {
   search?(query: string): Promise<CatalogItem[]>;
 }
 
+/**
+ * ESPN sits behind Akamai, which answers 403 "Access Denied" to any request from our
+ * servers that carries a custom User-Agent (a browser-like UA is refused too) while
+ * serving a plain, header-less request normally. Identifying ourselves therefore has to
+ * be skipped for these hosts or every schedule, score and standings call fails in
+ * production. Verified against site.api / site.web.api / cdn.espn.com from the deployed
+ * region — see git history for the probe.
+ */
+function needsBareRequest(url: string): boolean {
+  try {
+    return new URL(url).hostname.endsWith("espn.com");
+  } catch {
+    return false;
+  }
+}
+
 /** revalidateSec 0 = live data, never cached; otherwise Next caches the fetch briefly. */
 export async function fetchJSON<T = unknown>(url: string, ms = 12000, revalidateSec = 900): Promise<T> {
   const ctrl = new AbortController();
@@ -38,7 +54,7 @@ export async function fetchJSON<T = unknown>(url: string, ms = 12000, revalidate
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "SooncastTracker/1.0", Accept: "application/json" },
+      ...(needsBareRequest(url) ? {} : { headers: { "User-Agent": "SooncastTracker/1.0", Accept: "application/json" } }),
       ...(revalidateSec === 0 ? { cache: "no-store" as const } : { next: { revalidate: revalidateSec } }),
     });
     if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
