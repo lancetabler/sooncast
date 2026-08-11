@@ -45,7 +45,7 @@ const STATE_WINDOW_DAYS = 45;
 // fixtures (a single NHL season is ~730), which made this payload ~1 MB — parsed on every
 // launch and rewritten to the offline cache on every refresh. Anything past the horizon is
 // fetched on demand by the calendar via /api/events/range.
-const STATE_AHEAD_DAYS = 120;
+const STATE_AHEAD_DAYS = 75;
 
 export async function loadState(userId: string): Promise<StateBundle | null> {
   const user = await prisma.user.findUnique({ where: { id: userId } });

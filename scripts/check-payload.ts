@@ -1,13 +1,18 @@
-﻿import { prisma } from "../src/lib/prisma";
+/* Size of the /api/state payload the app downloads and caches on every refresh.
+   Run from d:\Tracker:  npx tsx scripts/check-payload.ts   */
+import { prisma } from "../src/lib/prisma";
+import { loadState } from "../src/lib/state";
+
 async function main() {
+  const users = await prisma.user.findMany({ select: { id: true, email: true } });
   const total = await prisma.event.count();
-  const rows = await prisma.event.findMany({ take: 400 });
-  const bytes = Buffer.byteLength(JSON.stringify(rows));
-  const perRow = bytes / rows.length;
   console.log(`events stored: ${total}`);
-  console.log(`avg row JSON: ${Math.round(perRow)} bytes -> full /api/state payload approx ${(total * perRow / 1024 / 1024).toFixed(2)} MB`);
-  const byFollow = await prisma.event.groupBy({ by: ["sourceLabel"], _count: true, orderBy: { _count: { sourceLabel: "desc" } }, take: 8 });
-  for (const g of byFollow) console.log(`   ${String(g._count).padStart(5)}  ${g.sourceLabel ?? "manual"}`);
+  for (const u of users) {
+    const state = await loadState(u.id);
+    if (!state) continue;
+    const bytes = Buffer.byteLength(JSON.stringify(state));
+    console.log(`${u.email}: ${state.events.length} events shipped -> ${(bytes / 1024).toFixed(0)} KB payload`);
+  }
   await prisma.$disconnect();
 }
 main().catch((e) => { console.error(e); process.exit(1); });
