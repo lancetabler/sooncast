@@ -48,6 +48,18 @@ export async function runFollowImport(
   const categoryId = await ensureCategory(userId, follow.categorySlug);
   const result: ImportResult = { added: 0, updated: 0 };
 
+  // Following both a league and one of its teams is normal, and whichever synced first
+  // used to own the shared game rows. That silently disabled live score/final alerts,
+  // which only fire for events owned by a `/teams/` follow — so a Commanders fan who also
+  // followed the NFL got no alerts for most Commanders games. A team follow is the more
+  // specific claim, so let it take ownership from a league follow (never from another team).
+  const isTeamFollow = follow.ref.includes("/teams/");
+  const teamFollowIds = isTeamFollow
+    ? new Set(
+        (await prisma.follow.findMany({ where: { userId, ref: { contains: "/teams/" } }, select: { id: true } })).map((f) => f.id)
+      )
+    : new Set<string>();
+
   if (normalized.length) {
     // One query to load everything that already exists, instead of one per game.
     const extIds = normalized.map((n) => `${follow.provider}:${n.extId}`);
@@ -80,8 +92,12 @@ export async function runFollowImport(
           sourceLabel: follow.label,
         });
       } else {
+        // Take over a league follow's row (see above); leave another team's claim alone
+        // so two followed teams playing each other don't flip ownership every sync.
+        const claimOwnership = isTeamFollow && ex.followId !== follow.id && !(ex.followId && teamFollowIds.has(ex.followId));
         // Only write when something actually changed — keeps re-syncs cheap.
         const changed =
+          claimOwnership ||
           ex.title !== n.title ||
           ex.start.getTime() !== start.getTime() ||
           ex.allDay !== (n.allDay ?? false) ||
@@ -102,9 +118,10 @@ export async function runFollowImport(
                 note: n.note ?? null,
                 url: n.url ?? null,
                 imageUrl: n.imageUrl ?? null,
-                // keep the original owner so unfollowing an overlapping source doesn't delete shared games
-                sourceLabel: ex.followId ? ex.sourceLabel : follow.label,
-                followId: ex.followId ?? follow.id,
+                // keep the original owner so unfollowing an overlapping source doesn't delete
+                // shared games — unless a team follow is claiming it (see claimOwnership)
+                sourceLabel: claimOwnership || !ex.followId ? follow.label : ex.sourceLabel,
+                followId: claimOwnership ? follow.id : (ex.followId ?? follow.id),
                 categoryId: ex.categoryId ?? categoryId,
               },
             })
