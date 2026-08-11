@@ -10,6 +10,8 @@ const schema = z.object({
   quietEnd: z.number().int().min(0).max(1439).nullable().optional(),
   favoriteAthletes: z.array(z.string().max(120)).max(200).optional(),
   spoilerMode: z.enum(["show", "finals", "all"]).optional(),
+  notifyScope: z.enum(["all", "specific", "manual"]).optional(),
+  timeSensitive: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -28,6 +30,11 @@ export async function PATCH(req: Request) {
       ...(d.quietStart !== undefined ? { quietStart: d.quietStart } : {}),
       ...(d.quietEnd !== undefined ? { quietEnd: d.quietEnd } : {}),
       ...(d.favoriteAthletes !== undefined ? { favoriteAthletes: JSON.stringify(d.favoriteAthletes) } : {}),
+      // spoilerMode was accepted by the schema but never written here — the setting looked
+      // like it saved (the client refetched an unchanged value) and did nothing.
+      ...(d.spoilerMode !== undefined ? { spoilerMode: d.spoilerMode } : {}),
+      ...(d.notifyScope !== undefined ? { notifyScope: d.notifyScope } : {}),
+      ...(d.timeSensitive !== undefined ? { timeSensitive: d.timeSensitive } : {}),
     },
   });
   return ok({ ok: true });

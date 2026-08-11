@@ -21,6 +21,10 @@ model User {
   defaultReminders String @default("[0,60,1440]") // JSON int[] minutes-before
   favoriteAthletes String @default("[]") // JSON string[] of "leagueRef::name" (starred drivers/players)
   spoilerMode      String @default("show") // show | finals (hide final scores until watched) | all (hide live scores too)
+  // Which follows may fire per-event reminders. A league-wide follow can carry hundreds of
+  // fixtures a season, so "all" is a firehose; "specific" is the sane default.
+  notifyScope      String  @default("specific") // all | specific (teams & individual picks) | manual (only follows you switch on)
+  timeSensitive    Boolean @default(true) // iOS Time-Sensitive interruption level (breaks through Focus)
   createdAt    DateTime @default(now())
 
   categories    Category[]
@@ -30,6 +34,7 @@ model User {
   expoPushTokens ExpoPushToken[]
   reminderLogs  ReminderLog[]
   resetTokens   PasswordResetToken[]
+  liveActivities LiveActivityToken[]
 }
 
 model PasswordResetToken {
@@ -110,6 +115,7 @@ model Follow {
   lastSync   DateTime?
   muted      Boolean  @default(false) // suppress ALL notifications from this source
   scoreAlerts Boolean @default(true)  // live score-change & final-result pushes (team sports)
+  notify     String?  // per-event reminders: null = follow the user's notifyScope, "on" = always, "off" = never
   createdAt  DateTime @default(now())
 
   events Event[]
@@ -140,6 +146,21 @@ model ExpoPushToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// ActivityKit push token for one running Live Activity. The app starts the Activity locally
+// and registers its token here so the server can update the Lock Screen / Dynamic Island
+// while the app is closed (Expo's push service can't carry Live Activity updates).
+model LiveActivityToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  token     String   @unique // hex APNs token from Activity.pushTokenUpdates
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventId])
 }
 
 // Last-run timestamp per cron job — powers the "Notifications health" panel.

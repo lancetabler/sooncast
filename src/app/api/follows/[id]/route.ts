@@ -4,7 +4,12 @@ import { requireUser, isResponse, ok, bad } from "@/lib/api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const patchSchema = z.object({ muted: z.boolean().optional(), scoreAlerts: z.boolean().optional() });
+const patchSchema = z.object({
+  muted: z.boolean().optional(),
+  scoreAlerts: z.boolean().optional(),
+  // null = inherit the account-wide notify scope
+  notify: z.enum(["on", "off"]).nullable().optional(),
+});
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const user = await requireUser();

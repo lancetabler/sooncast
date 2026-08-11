@@ -12,7 +12,15 @@ interface StoredToken {
  */
 export async function sendExpo(
   tokens: StoredToken[],
-  msg: { title: string; body: string; data?: Record<string, unknown> }
+  msg: {
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+    /** iOS: break through Focus/Do Not Disturb. Only for things that are actually starting now. */
+    timeSensitive?: boolean;
+    /** iOS: notification category, which supplies the action buttons registered by the app. */
+    categoryId?: string;
+  }
 ): Promise<number> {
   if (!tokens.length) return 0;
 
@@ -21,6 +29,8 @@ export async function sendExpo(
     title: msg.title,
     body: msg.body,
     sound: "default" as const,
+    ...(msg.timeSensitive ? { interruptionLevel: "time-sensitive" as const } : {}),
+    ...(msg.categoryId ? { categoryId: msg.categoryId } : {}),
     ...(msg.data ? { data: msg.data } : {}),
   }));
 

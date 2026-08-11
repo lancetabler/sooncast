@@ -8,6 +8,8 @@ import { sendPush, pushReady } from "@/lib/push";
 import { getLiveStatuses, scoreString } from "@/lib/live";
 import { runFollowImport } from "@/lib/import";
 import { sendExpo } from "@/lib/expo-push";
+import { followNotifies, type NotifyScope } from "@/lib/domain/notify";
+import { apnsConfigured, sendLiveActivityUpdate } from "@/lib/apns";
 import type { TrackEvent } from "@/lib/domain/types";
 
 // How far back to catch fires that just came due. Set CRON_LOOKBACK_MIN to your
@@ -103,7 +105,8 @@ export async function runReminders(): Promise<ReminderResult> {
     body: string,
     tag: string,
     url?: string,
-    eventId?: string
+    eventId?: string,
+    opts?: { timeSensitive?: boolean; followId?: string | null }
   ): Promise<number> {
     let delivered = 0;
     // Web push only runs when VAPID is configured; native delivery below is independent.
@@ -114,13 +117,18 @@ export async function runReminders(): Promise<ReminderResult> {
         else if (status >= 200 && status < 300) { sent++; delivered++; }
       }
     }
-    // Native (Expo → APNs). `eventId` lets the app open the event when the push is tapped.
+    // Native (Expo → APNs). `eventId` lets the app open the event when the push is tapped,
+    // and `followId` powers the "Mute this" notification action.
     const data: Record<string, unknown> = {};
     if (url) data.url = url;
     if (eventId) data.eventId = eventId;
+    if (opts?.followId) data.followId = opts.followId;
     const expoDelivered = await sendExpo(user.expoPushTokens, {
       title,
       body,
+      // Only the actually-urgent ones pierce Focus, and only if the user left it on.
+      timeSensitive: !!opts?.timeSensitive && user.timeSensitive,
+      categoryId: eventId ? "event" : undefined,
       data: Object.keys(data).length ? data : undefined,
     });
     sent += expoDelivered;
@@ -138,9 +146,15 @@ export async function runReminders(): Promise<ReminderResult> {
     const mutedFollowIds = new Set(user.follows.filter((f) => f.muted).map((f) => f.id));
     const noScoreFollowIds = new Set(user.follows.filter((f) => !f.scoreAlerts).map((f) => f.id));
     const followRefById = new Map(user.follows.map((f) => [f.id, f.ref]));
+    // Reminder eligibility is evaluated here, at send time, rather than baked into the events at
+    // import — so changing the setting takes effect on the next tick instead of the next sync.
+    const scope = user.notifyScope as NotifyScope;
+    const notifyingFollowIds = new Set(user.follows.filter((f) => followNotifies(scope, f)).map((f) => f.id));
+    const followIdByEvent = new Map(user.events.map((e) => [e.id, e.followId]));
 
     /* ---- reminders ---- */
-    const track: TrackEvent[] = user.events.filter((e) => !(e.followId && mutedFollowIds.has(e.followId))).map(toTrack);
+    // Events you added yourself always notify; imported ones obey the follow's policy.
+    const track: TrackEvent[] = user.events.filter((e) => !e.followId || notifyingFollowIds.has(e.followId)).map(toTrack);
     const occ = expandAll(track, from, to, user.timezone);
     const due = reminderFires(occ).filter((f) => {
       const t = f.fireAt.getTime();
@@ -157,7 +171,11 @@ export async function runReminders(): Promise<ReminderResult> {
         fire.minutes === 0
           ? "Starting now" + suffix
           : `${reminderLabel(fire.minutes).replace(" before", "")} — starts soon` + suffix;
-      const delivered = await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined, fire.eventId);
+      const delivered = await pushAll(user, fire.title, body, fire.key, fire.url ?? undefined, fire.eventId, {
+        // "Starting now" and the last call before kick-off are the ones worth piercing Focus.
+        timeSensitive: fire.minutes <= 15,
+        followId: followIdByEvent.get(fire.eventId) ?? null,
+      });
       // The push never landed (transient gateway failure) — release the claim so we retry next run.
       if (!delivered) await releaseClaim(fire.key);
     }
@@ -176,6 +194,12 @@ export async function runReminders(): Promise<ReminderResult> {
       const statuses = await getLiveStatuses(
         liveCandidates.map((e) => ({ eventId: e.id, sourceExtId: e.sourceExtId, followRef: followRefById.get(e.followId!) ?? null, start: e.start }))
       );
+      // Live Activity tokens for these games, so the Lock Screen keeps moving with the app closed.
+      const laTokens = apnsConfigured()
+        ? await prisma.liveActivityToken.findMany({ where: { userId: user.id, eventId: { in: liveCandidates.map((e) => e.id) } } })
+        : [];
+      const tokensByEvent = new Map<string, typeof laTokens>();
+      for (const t of laTokens) tokensByEvent.set(t.eventId, [...(tokensByEvent.get(t.eventId) ?? []), t]);
       for (const e of liveCandidates) {
         const st = statuses[e.id];
         if (!st) continue;
@@ -190,7 +214,10 @@ export async function runReminders(): Promise<ReminderResult> {
             const bucket = Math.floor(now / SCORE_THROTTLE_MS);
             const scoreKey = `score:${e.id}:${bucket}`;
             if (await claimOnce(user.id, scoreKey)) {
-              const delivered = await pushAll(user, `🚨 ${e.title}`, `${newScore}${st.detail ? " · " + st.detail : ""}`, `score-${e.id}`, e.url ?? undefined, e.id);
+              const delivered = await pushAll(user, `🚨 ${e.title}`, `${newScore}${st.detail ? " · " + st.detail : ""}`, `score-${e.id}`, e.url ?? undefined, e.id, {
+                timeSensitive: true, // the game is happening right now
+                followId: e.followId,
+              });
               // Free the throttle bucket so the next actual score change can still alert (liveScore
               // advances below regardless, so this exact score won't re-fire — score alerts are lossy).
               if (!delivered) await releaseClaim(scoreKey);
@@ -204,13 +231,45 @@ export async function runReminders(): Promise<ReminderResult> {
           const finalKey = `final:${e.id}`;
           if (await claimOnce(user.id, finalKey)) {
             const body = shielded ? "Full time — result hidden. Tap when you're ready." : newScore ?? "Final";
-            const delivered = await pushAll(user, `Final · ${e.title}`, body, `final-${e.id}`, e.url ?? undefined, e.id);
+            const delivered = await pushAll(user, `Final · ${e.title}`, body, `final-${e.id}`, e.url ?? undefined, e.id, { followId: e.followId });
             if (delivered) {
               // Only mark "post" once the Final actually landed — otherwise the event drops out of
               // the live-candidate filter and the Final could never be retried.
               await prisma.event.update({ where: { id: e.id }, data: { liveScore: newScore, liveState: "post" } });
             } else {
               await releaseClaim(finalKey);
+            }
+          }
+        }
+
+        /* ---- Live Activity (Lock Screen / Dynamic Island) ---- */
+        // The app can only refresh these while it's open, so the server drives them during
+        // the game. Same spoiler rules as the pushes: never put a hidden score on-screen.
+        const tokens = tokensByEvent.get(e.id) ?? [];
+        if (tokens.length && (st.state === "in" || st.state === "post")) {
+          const hideNumbers = shielded && (user.spoilerMode === "all" || st.state === "post");
+          const content = {
+            status: st.state,
+            detail: hideNumbers ? (st.state === "post" ? "Full time — result hidden" : "Live — score hidden") : st.detail || (st.state === "post" ? "Final" : "Live"),
+            ...(hideNumbers
+              ? {}
+              : {
+                  homeName: st.home?.abbr ?? "",
+                  homeScore: st.home?.score ?? "",
+                  awayName: st.away?.abbr ?? "",
+                  awayScore: st.away?.score ?? "",
+                }),
+          };
+          for (const t of tokens) {
+            const res = await sendLiveActivityUpdate(t.token, content, {
+              end: st.state === "post",
+              // Outlive the poll interval so a single missed tick doesn't grey the card.
+              staleAfterSec: 300,
+              // Leave the final score up for a few minutes, then let iOS dismiss it.
+              dismissAfterSec: 10 * 60,
+            });
+            if (res === "gone" || st.state === "post") {
+              await prisma.liveActivityToken.delete({ where: { id: t.id } }).catch(() => {});
             }
           }
         }
