@@ -290,6 +290,8 @@ export interface SyncResult {
   added: number;
   failed: number;
   pruned: number;
+  /** Per-follow failure reasons (capped) — without these a `failed: 12` is undiagnosable. */
+  errors?: string[];
 }
 
 /** Re-import every followed source and push when new fixtures appear; prune stale past imports. */
@@ -298,16 +300,31 @@ export async function runSync(): Promise<SyncResult> {
   let follows = 0;
   let added = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   for (const user of users) {
     let userAdded = 0;
     for (const f of user.follows) {
       follows++;
-      try {
-        const res = await runFollowImport(user.id, f);
-        userAdded += res.added;
-      } catch {
+      // One retry: a serverless sync of many follows trips transient upstream/DB blips
+      // (cold Neon compute, a flaky provider response) that succeed a moment later.
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await runFollowImport(user.id, f);
+          userAdded += res.added;
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+      if (lastErr) {
         failed++;
+        const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+        console.error(`[sync] ${f.provider}:${f.ref} (${f.label}) failed:`, msg);
+        if (errors.length < 10) errors.push(`${f.label}: ${msg.slice(0, 200)}`);
       }
     }
     added += userAdded;
@@ -332,5 +349,5 @@ export async function runSync(): Promise<SyncResult> {
     .then((r) => r.count)
     .catch(() => 0);
 
-  return { follows, added, failed, pruned };
+  return { follows, added, failed, pruned, ...(errors.length ? { errors } : {}) };
 }
