@@ -47,6 +47,72 @@ export async function upcomingMovies(): Promise<CatalogItem[]> {
   return out.map(({ _date, ...item }) => item);
 }
 
+export interface MovieDetail {
+  id: number;
+  title: string;
+  tagline: string | null;
+  overview: string | null;
+  releaseDate: string | null;
+  runtimeMin: number | null;
+  genres: string[];
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  rating: number | null; // TMDB average out of 10
+  certification: string | null; // US rating (PG-13, R…)
+  cast: { name: string; character: string | null }[];
+  director: string | null;
+  /** YouTube video id for the best available trailer, if any. */
+  trailerKey: string | null;
+  trailerName: string | null;
+  tmdbUrl: string;
+}
+
+const BACKDROP = "https://image.tmdb.org/t/p/w780";
+const POSTER = "https://image.tmdb.org/t/p/w342";
+
+/** Pick the most useful video: an official trailer beats a teaser beats anything else. */
+function bestTrailer(videos: any[]): { key: string; name: string } | null {
+  const youtube = (videos || []).filter((v) => v?.site === "YouTube" && v?.key);
+  if (!youtube.length) return null;
+  const score = (v: any) =>
+    (v.type === "Trailer" ? 4 : v.type === "Teaser" ? 2 : 0) + (v.official ? 1 : 0);
+  const best = [...youtube].sort((a, b) => score(b) - score(a))[0];
+  return { key: best.key, name: best.name || "Trailer" };
+}
+
+/** Everything needed to decide "do I want to see this?" — synopsis, cast, and the trailer. */
+export async function movieDetail(id: string): Promise<MovieDetail | null> {
+  if (!apiKey() || !/^\d+$/.test(id)) return null;
+  const data = await fetchJSON<any>(
+    `https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey()}&append_to_response=videos,credits,release_dates`
+  ).catch(() => null);
+  if (!data?.id) return null;
+
+  const usRelease = (data.release_dates?.results || []).find((r: any) => r.iso_3166_1 === "US");
+  const certification =
+    (usRelease?.release_dates || []).map((r: any) => r.certification).find((cert: string) => !!cert) || null;
+  const trailer = bestTrailer(data.videos?.results);
+
+  return {
+    id: data.id,
+    title: data.title,
+    tagline: data.tagline || null,
+    overview: data.overview || null,
+    releaseDate: data.release_date || null,
+    runtimeMin: data.runtime || null,
+    genres: (data.genres || []).map((g: any) => g.name).filter(Boolean),
+    posterUrl: data.poster_path ? POSTER + data.poster_path : null,
+    backdropUrl: data.backdrop_path ? BACKDROP + data.backdrop_path : null,
+    rating: typeof data.vote_average === "number" && data.vote_count > 0 ? data.vote_average : null,
+    certification,
+    cast: (data.credits?.cast || []).slice(0, 6).map((p: any) => ({ name: p.name, character: p.character || null })),
+    director: (data.credits?.crew || []).find((p: any) => p.job === "Director")?.name || null,
+    trailerKey: trailer?.key ?? null,
+    trailerName: trailer?.name ?? null,
+    tmdbUrl: `https://www.themoviedb.org/movie/${data.id}`,
+  };
+}
+
 export const tmdb: SourceProvider = {
   id: "tmdb",
   async fetchEvents(ref: string): Promise<NormalizedEvent[]> {
