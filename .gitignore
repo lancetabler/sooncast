@@ -35,6 +35,11 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# Apple push keys. A .p8 can only be downloaded once and grants push for the whole team
+# until revoked — this repo is public, so it must never be able to land in a commit.
+*.p8
+AuthKey_*
+
 # local database (SQLite dev)
 /prisma/*.db
 /prisma/*.db-journal
