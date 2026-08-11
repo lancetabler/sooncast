@@ -20,8 +20,17 @@ import http2 from "node:http2";
  *   APNS_BUNDLE_ID  – defaults to com.lancetabler.sooncast
  */
 
+/**
+ * Env values arrive through dashboards, shells and pipes, which happily add a UTF-8 BOM or a
+ * trailing newline. A stray BOM on the key id yields a JWT whose `kid` Apple rejects — while
+ * every local check still passes — so scrub each value on the way in.
+ */
+function env(name: string): string {
+  return (process.env[name] || "").replace(/^﻿/, "").trim();
+}
+
 export function apnsConfigured(): boolean {
-  return !!(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_AUTH_KEY);
+  return !!(env("APNS_KEY_ID") && env("APNS_TEAM_ID") && env("APNS_AUTH_KEY"));
 }
 
 /**
@@ -33,8 +42,8 @@ export function apnsHealth(): { configured: boolean; signs: boolean; keyId: stri
   if (!apnsConfigured()) {
     return { configured: false, signs: false, keyId: null, problem: "APNS_KEY_ID / APNS_TEAM_ID / APNS_AUTH_KEY not set" };
   }
-  const key = (process.env.APNS_AUTH_KEY || "").replace(/\\n/g, "\n");
-  const keyId = process.env.APNS_KEY_ID || null;
+  const key = env("APNS_AUTH_KEY").replace(/\\n/g, "\n");
+  const keyId = env("APNS_KEY_ID") || null;
   if (!/BEGIN PRIVATE KEY/.test(key)) {
     return { configured: true, signs: false, keyId, problem: "APNS_AUTH_KEY doesn't look like a .p8 (no BEGIN PRIVATE KEY line)" };
   }
@@ -49,7 +58,7 @@ export function apnsHealth(): { configured: boolean; signs: boolean; keyId: stri
 }
 
 function bundleId(): string {
-  return process.env.APNS_BUNDLE_ID || "com.lancetabler.sooncast";
+  return env("APNS_BUNDLE_ID") || "com.lancetabler.sooncast";
 }
 
 function base64url(input: Buffer | string): string {
@@ -64,10 +73,10 @@ function providerToken(): string | null {
   if (!apnsConfigured()) return null;
   if (cachedToken && Date.now() - cachedToken.at < 30 * 60_000) return cachedToken.jwt;
 
-  const header = base64url(JSON.stringify({ alg: "ES256", kid: process.env.APNS_KEY_ID }));
-  const claims = base64url(JSON.stringify({ iss: process.env.APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) }));
+  const header = base64url(JSON.stringify({ alg: "ES256", kid: env("APNS_KEY_ID") }));
+  const claims = base64url(JSON.stringify({ iss: env("APNS_TEAM_ID"), iat: Math.floor(Date.now() / 1000) }));
   // The p8 may arrive with literal "\n" sequences when pasted into a dashboard env var.
-  const key = (process.env.APNS_AUTH_KEY || "").replace(/\\n/g, "\n");
+  const key = env("APNS_AUTH_KEY").replace(/\\n/g, "\n");
   try {
     const signer = createSign("SHA256");
     signer.update(`${header}.${claims}`);
@@ -111,7 +120,7 @@ export async function apnsPost(
   headers: Record<string, string>,
   body: string
 ): Promise<{ status: number; body: string }> {
-  const host = process.env.APNS_HOST || "https://api.push.apple.com";
+  const host = env("APNS_HOST") || "https://api.push.apple.com";
   return new Promise((resolve, reject) => {
     const client = http2.connect(host);
     let settled = false;
@@ -151,6 +160,35 @@ export interface LiveActivityContent {
 }
 
 export type ApnsResult = "sent" | "gone" | "failed" | "not-configured";
+
+/**
+ * Round-trip the credentials against Apple using a deliberately invalid device token, so the
+ * only thing under test is the key. "BadDeviceToken" means Apple accepted it.
+ *
+ * Worth doing over a local check: signing succeeds happily with a key id that has a BOM stuck
+ * to it, and only Apple will tell you it's wrong.
+ */
+export async function apnsProbe(): Promise<{ ok: boolean; status: number; reason: string }> {
+  const jwt = providerToken();
+  if (!jwt) return { ok: false, status: 0, reason: "not configured" };
+  try {
+    const { status, body } = await apnsPost(
+      "0".repeat(64),
+      {
+        authorization: `bearer ${jwt}`,
+        "apns-topic": `${bundleId()}.push-type.liveactivity`,
+        "apns-push-type": "liveactivity",
+        "apns-priority": "10",
+        "content-type": "application/json",
+      },
+      JSON.stringify({ aps: { timestamp: Math.floor(Date.now() / 1000), event: "update", "content-state": {} } })
+    );
+    const reason = (body.match(/"reason"\s*:\s*"([^"]+)"/)?.[1] ?? body.slice(0, 80)) || String(status);
+    return { ok: /BadDeviceToken|DeviceTokenNotForTopic|Unregistered/.test(body), status, reason };
+  } catch (e) {
+    return { ok: false, status: 0, reason: e instanceof Error ? e.message : "request failed" };
+  }
+}
 
 /**
  * Push one Live Activity update (or `end` it). Returns "gone" when APNs says the token is
